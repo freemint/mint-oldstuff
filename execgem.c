@@ -58,6 +58,12 @@
 #define F_PROT_I	0x40		/* invalid page */
 #endif
 
+#ifndef F_ALLOCZERO
+#define F_ALLOCZERO	0x2000		/* zero mem, for bugged (GEM...) programs */
+#endif
+
+long GEM_memflags = F_ALLOCZERO | F_ALTLOAD | F_ALTALLOC | F_PROT_G;
+
 int
 main(argc, argv)
 	int argc;
@@ -108,7 +114,7 @@ main(argc, argv)
 			r = errno;
 		} else {
 			bp = (BASEPAGE *)Pexec(7,
-			  (char *)((long)F_FASTLOAD | F_ALTLOAD | F_ALTALLOC | F_PROT_S),
+			  (char *)GEM_memflags,
 			  (char *)"\0", init_env);
 			bp->p_tbase = *((char **) EXEC_OS );
 			r = -Pexec(206, (char *)"GEM", bp, 0L);

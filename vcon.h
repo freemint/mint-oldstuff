@@ -1,7 +1,16 @@
+#include <ostruct.h>
+
 #ifdef __GNUC__
-#define EXITING volatile	/* function never returns */
+# if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 5)
+#  define EXITING
+#  define NORETURN __attribute__ ((noreturn))
+# else
+#  define EXITING volatile	/* function never returns */
+#  define NORETURN
+# endif
 #else
-#define EXITING
+# define EXITING
+# define NORETURN
 #endif
 
 /* define how to call functions with stack parameter passing */
@@ -52,6 +61,17 @@ typedef long (*Func)();
 #define CBREAK T_CBREAK
 #define TOSTOP T_TOSTOP
 #define XKEY T_XKEY
+#endif
+
+#ifndef READY_Q
+#define CURPROC_Q	0
+#define READY_Q		1
+#define WAIT_Q		2
+#define IO_Q		3
+#define ZOMBIE_Q	4
+#define TSR_Q		5
+#define STOP_Q		6
+#define SELECT_Q	7
 #endif
 
 extern struct kerinfo *kernel;

@@ -1,5 +1,5 @@
 /*
- * virtual terminals for MiNT, v0.5 (beta)
+ * virtual terminals for MiNT, v0.6 (beta)
  *
  * ttyv1..9 are fast hardware-scrolling text-terminals, ttyv0 is the
  * original console and may still be used for graphic display and GEM.
@@ -21,6 +21,7 @@
 
 #include <osbind.h>
 #include <sysvars.h>
+#include <stddef.h>
 #undef flock
 #undef	_sysbase
 #define	_sysbase (* ((OSHEADER **) 0x4f2))
@@ -46,16 +47,16 @@ long _stksize = 0x4000;
 struct kerinfo *kernel;
 
 struct dev_descr devinfo[] = {
-	{&vcon_device, 0, O_TTY, &ttys[0].tt, {0L, 0L, 0L, 0L}},  /* ttyv0 (console) */
-	{&vcon_device, 1, O_TTY, &ttys[1].tt, {0L, 0L, 0L, 0L}},  /* ttyv1 */
-	{&vcon_device, 2, O_TTY, &ttys[2].tt, {0L, 0L, 0L, 0L}},  /* ttyv2 */
-	{&vcon_device, 3, O_TTY, &ttys[3].tt, {0L, 0L, 0L, 0L}},  /* ttyv3 */
-	{&vcon_device, 4, O_TTY, &ttys[4].tt, {0L, 0L, 0L, 0L}},  /* ttyv4 */
-	{&vcon_device, 5, O_TTY, &ttys[5].tt, {0L, 0L, 0L, 0L}},  /* ttyv5 */
-	{&vcon_device, 6, O_TTY, &ttys[6].tt, {0L, 0L, 0L, 0L}},  /* ttyv6 */
-	{&vcon_device, 7, O_TTY, &ttys[7].tt, {0L, 0L, 0L, 0L}},  /* ttyv7 */
-	{&vcon_device, 8, O_TTY, &ttys[8].tt, {0L, 0L, 0L, 0L}},  /* ttyv8 */
-	{&vcon_device, 9, O_TTY, &ttys[9].tt, {0L, 0L, 0L, 0L}}   /* ttyv9 */
+	{&vcon_device, 0, O_TTY, &ttys[0].tt},	/* ttyv0 (console) */
+	{&vcon_device, 1, O_TTY, &ttys[1].tt},	/* ttyv1 */
+	{&vcon_device, 2, O_TTY, &ttys[2].tt},	/* ttyv2 */
+	{&vcon_device, 3, O_TTY, &ttys[3].tt},	/* ttyv3 */
+	{&vcon_device, 4, O_TTY, &ttys[4].tt},	/* ttyv4 */
+	{&vcon_device, 5, O_TTY, &ttys[5].tt},	/* ttyv5 */
+	{&vcon_device, 6, O_TTY, &ttys[6].tt},	/* ttyv6 */
+	{&vcon_device, 7, O_TTY, &ttys[7].tt},	/* ttyv7 */
+	{&vcon_device, 8, O_TTY, &ttys[8].tt},	/* ttyv8 */
+	{&vcon_device, 9, O_TTY, &ttys[9].tt}	/* ttyv9 */
 };
 
 #define MAX_VT ((sizeof devinfo)/sizeof (struct dev_descr))
@@ -258,7 +259,6 @@ long *cbuf, *bufp;
 main()
 {
 	int i;
-	char *s;
 	volatile char *pkbshift = getpkbshift();
 	long cbuf[0x80], *bufp;
 	extern int __mint;
@@ -320,6 +320,12 @@ main()
 		char name[] = "u:\\dev\\ttyv0";
 
 		name[sizeof "u:\\dev\\ttyv"-1] = i+'0';
+		if (vcon_device.writeb)
+#ifndef follow_links	/* filesys.h */
+			devinfo[i].devdrvsiz = offsetof (DEVDRV, writeb) + sizeof (long);
+#else			/* kernel file.h... */
+			devinfo[i].drvsize = offsetof (DEVDRV, writeb) + sizeof (long);
+#endif
 		kernel = (struct kerinfo *)Dcntl(DEV_INSTALL, name, devinfo+i);
 		if (!kernel || ((long)kernel) == -32) {
 			con_sane();
@@ -458,8 +464,10 @@ main()
 		} else	if ((ttys[vcurrent].tt.state & TS_COOKED) ||
 			    (cshift & 0xc) == 0xc) {
 			char ch = (char) l;
-			int sig = 0;
+			int xfd = cfd, sig = 0;
+			char xname[] = "u:\\dev\\ttyv0";
 
+			xname[sizeof "u:\\dev\\ttyv"-1] = vcurrent+'0';
 			if (!ch)
 				;	/* do nothing */
 			else if (ch == ttys[vcurrent].tt.tc.t_intrc)
@@ -469,15 +477,30 @@ main()
 			else if (ch == ttys[vcurrent].tt.ltc.t_suspc)
 				sig = SIGTSTP;
 			else if (ch == ttys[vcurrent].tt.tc.t_stopc) {
-				ttys[vcurrent].tt.state |= TS_HOLD;
+				if (!vcurrent ||
+				    (xfd = Fopen (xname, O_RDONLY)) >= 0) {
+					Fcntl (xfd, (char *) 0, TIOCSTOP);
+					if (vcurrent)
+						Fclose (xfd);
+				}
 				continue;
 			}
 			else if (ch == ttys[vcurrent].tt.tc.t_startc) {
-				ttys[vcurrent].tt.state &= ~TS_HOLD;
+				if (!vcurrent ||
+				    (xfd = Fopen (xname, O_RDONLY)) >= 0) {
+					Fcntl (xfd, (char *) 0, TIOCSTART);
+					if (vcurrent)
+						Fclose (xfd);
+				}
 				continue;
 			}
 			if (sig) {
-				ttys[vcurrent].tt.state &= ~TS_HOLD;
+				if (!vcurrent ||
+				    (xfd = Fopen (xname, O_RDONLY)) >= 0) {
+					Fcntl (xfd, (char *) 0, TIOCSTART);
+					if (vcurrent)
+						Fclose (xfd);
+				}
 				if (!(ttys[vcurrent].tt.sg.sg_flags & T_NOFLSH))
 					Fcntl (fd, (char *) 0, TIOCFLUSH);
 				else

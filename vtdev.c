@@ -1135,9 +1135,16 @@ static void ARGS_ON_STACK screen_unselect P_((FILEPTR *f, long p, int mode));
 
 static long ARGS_ON_STACK screen_datime	P_((FILEPTR *f, short *time, int rwflag));
 
+static long ARGS_ON_STACK screen_writeb P_((FILEPTR *f, const char *buf, long nbytes));
+
 DEVDRV vcon_device = {
 	screen_open, screen_write, screen_read, screen_lseek, screen_ioctl,
-	screen_datime, screen_close, screen_select, screen_unselect
+	screen_datime, screen_close, screen_select, screen_unselect,
+#ifdef WRITEB111
+	screen_writeb
+#else
+	0
+#endif
 };
 
 static long ARGS_ON_STACK 
@@ -1218,14 +1225,41 @@ screen_close(f, pid)
 
 #define _hz_200 (*((long *)0x4baL))
 
+#ifdef WRITEB111
+#define CHECKSLEEP (tick != _hz_200 && !(tick & 3))
+
 static long ARGS_ON_STACK 
 screen_write(f, buf, bytes)
 	FILEPTR *f; const char *buf; long bytes;
 {
+	if (!bytes)
+		return bytes;
+	if (bytes != 4)
+		ALERT("ttyv%c write bytes != 4, use MiNT >= 1.11 or recompile without -DWRITEB111",
+			(char)f->fc.aux+'0');
+	screen_writeb(f, buf+3, 1);
+	return 4L;
+}
+
+static long ARGS_ON_STACK 
+screen_writeb(f, buf, bytes)
+	FILEPTR *f; const char *buf; long bytes;
+#else
+#define CHECKSLEEP 0
+
+static long ARGS_ON_STACK 
+screen_write(f, buf, bytes)
+	FILEPTR *f; const char *buf; long bytes;
+#endif
+{
 	int vt = f->fc.aux;
 	SCREEN *v;
-	long *r;
-	long ret = 0;
+#ifdef WRITEB111
+	unsigned char *r = (unsigned char *)buf;
+#else
+	long *r = (long *)buf;
+#endif
+	long ret = bytes;
 	int c;
 	long tick;
 	static long lastw;
@@ -1240,22 +1274,63 @@ screen_write(f, buf, bytes)
 	   while we were writing (there are 50 of them in a second)
 	   and yield() when found one.  (comments?)
 	*/
-#if 0
-	(void)checkkeys();
-#else
-	tick = _hz_200;
-#endif
-	r = (long *)buf;
 	v = TT_SCREEN((struct tty *)f->devinfo);
+	while (bytes > 0) {
+#ifdef WRITEB111
+		while (((struct tty *)f->devinfo)->state & TS_HOLD)
+			SLEEP(IO_Q, (long)&((struct tty *)f->devinfo)->state);
+#endif
+#if 0
+		(void)checkkeys();
+#else
+		tick = _hz_200;
+#endif
 #ifdef VT00XCON
-	if (vt) {
+		if (vt) {
+			v->hidecnt++;
+			v->flags |= CURS_UPD;		/* for TOS 1.0 */
+			curs_off(v);
+			do {
+				c = (int) *r++;
+				put_ch0x(v, c);
+			} while ((bytes -= sizeof *r) > 0 && !CHECKSLEEP);
+			if (v->hidecnt > 0)
+				--v->hidecnt;
+			else
+				v->hidecnt = 0;
+			curs_on(v);
+			v->flags &= ~CURS_UPD;
+		} else {
+			if (xconout_start) {
+				do {
+					c = (int) *r++;
+					(void) xcon_exec (xconout[CONDEV], (unsigned char) c);
+				} while ((bytes -= sizeof *r) > 0 && !CHECKSLEEP);
+			} else {
+				do {
+					c = (int) *r++;
+					(void) bconout(CONDEV, (unsigned char) c);
+				} while ((bytes -= sizeof *r) > 0 && !CHECKSLEEP);
+			}
+		}
+#else
 		v->hidecnt++;
 		v->flags |= CURS_UPD;		/* for TOS 1.0 */
-		curs_off(v);
-		while (bytes > 0) {
-			c = (int) *r++;
-			put_ch0x(v, c);
-			bytes -= 4; ret+= 4;
+		if (vt) {
+			curs_off(v);
+			do {
+				c = (int) *r++;
+				put_ch0x(v, c);
+			} while ((bytes -= sizeof *r) > 0 && !CHECKSLEEP);
+		} else {
+			if (v->cheight != v0x->cheight ||
+			    V_USEDPLANES(v) != v0x->v.t.usedplanes)
+				vpaint = paint;
+			curs_off(v);
+			do {
+				c = (int) *r++;
+				put_ch00(v, c);
+			} while ((bytes -= sizeof *r) > 0 && !CHECKSLEEP);
 		}
 		if (v->hidecnt > 0)
 			--v->hidecnt;
@@ -1263,47 +1338,12 @@ screen_write(f, buf, bytes)
 			v->hidecnt = 0;
 		curs_on(v);
 		v->flags &= ~CURS_UPD;
-	} else {
-		if (xconout_start) while (bytes > 0) {
-			c = (int) *r++;
-			(void) xcon_exec (xconout[CONDEV], (unsigned char) c);
-			bytes -= 4; ret+= 4;
-		} else while (bytes > 0) {
-			c = (int) *r++;
-			(void) bconout(CONDEV, (unsigned char) c);
-			bytes -= 4; ret+= 4;
-		}
-	}
-#else
-	v->hidecnt++;
-	v->flags |= CURS_UPD;		/* for TOS 1.0 */
-	if (vt) {
-		curs_off(v);
-		while (bytes > 0) {
-			c = (int) *r++;
-			put_ch0x(v, c);
-			bytes -= 4; ret+= 4;
-		}
-	} else {
-		if (v->cheight != v0x->cheight ||
-		    V_USEDPLANES(v) != v0x->v.t.usedplanes)
-			vpaint = paint;
-		curs_off(v);
-		while (bytes > 0) {
-			c = (int) *r++;
-			put_ch00(v, c);
-			bytes -= 4; ret+= 4;
-		}
-	}
-	if (v->hidecnt > 0)
-		--v->hidecnt;
-	else
-		v->hidecnt = 0;
-	curs_on(v);
-	v->flags &= ~CURS_UPD;
-	vpaint = vpaint0x;
+		vpaint = vpaint0x;
 #endif
-#if 1
+		if (bytes && !(((struct tty *)f->devinfo)->state & TS_HOLD))
+			yield();
+	}
+#ifndef WRITEB111
 	if (tick != _hz_200 && !(tick & 3))
 		yield();
 #endif

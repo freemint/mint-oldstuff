@@ -317,7 +317,7 @@ void showscreen (vt, v, vbase, save)
 
 	if (rez_vt < 0) {
 		/* unknown hardware or can't change mode -> only set address */
-		Setscreen (-1l, vbase, -1, -1);
+		(void) Setscreen (-1l, vbase, -1, -1);
 		return;
 	}
 	switch (vdo) {
