@@ -5,6 +5,26 @@
 #
 PATH=/bin:/usr/bin:/usr/etc:/usr/ucb; export PATH
 
+#
+# Generate a message of the day with the correct version information.
+#
+if [ -f /usr/etc/makemotd ] ; then
+	/usr/etc/makemotd
+fi
+
+if [ -f /usr/etc/portmap ] ; then
+	/usr/etc/portmap;	echo 'starting rpc port mapper.'
+fi
+
+if [ -f /etc/ifconfig ] ; then
+#	stty 19200 < /dev/ttya
+#	/etc/ifconfig sl0 addr 100.0.0.1 dstaddr 100.0.0.2 up
+#	route add 100.0.0.2 sl0
+
+	echo "network interface configuration:"
+	/etc/ifconfig -a
+fi
+
 echo -n "starting additional services:"
 
 echo "."
@@ -16,6 +36,17 @@ if [ -f /usr/etc/syslogd ]; then
 fi
 
 echo -n "starting local daemons:"
+
+if [ -f /usr/etc/rpc.mountd ] ; then
+	rm -f /etc/mtab
+	echo -n " mountd"
+	rpc.mountd
+fi
+
+if [ -f /usr/etc/nfsd ] ; then
+	echo -n " nfsd"
+	nfsd
+fi
 
 echo "."
 

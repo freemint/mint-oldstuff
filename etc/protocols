@@ -1,0 +1,18 @@
+#
+# /etc/protocols -- protocol database for Mint-Net (w) 1994, Kay Roemer
+#
+#
+# The form for each entry is:
+# <official protocol name>	<protocol number>	<aliases>
+#
+
+ip	0	IP		# internet protocol, pseudo protocol number
+icmp	1	ICMP		# internet control message protocol
+ggp	3	GGP		# gateway-gateway protocol
+tcp	6	TCP		# transmission control protocol
+egp	8	EGP		# exterior gateway protocol
+pup	12	PUP		# PARC universal packet protocol
+udp	17	UDP		# user datagram protocol
+hmp	20	HMP		# host monitoring protocol
+xns-idp	22	XNS-IDP		# Xerox NS IDP
+rdp	27	RDP		# "reliable datagram" protocol

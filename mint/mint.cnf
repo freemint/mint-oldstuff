@@ -1,0 +1,27 @@
+BIOSBUF=yes
+HARDSCROLL=10
+INIT=u:\usr\sbin\init
+#INIT=u:\usr\sbin\init -s
+#CON=u:\dev\fasttext
+#DEBUG_LEVEL=2
+SLICES=1
+
+cd u:\
+
+ren u:\dev\modem1 u:\dev\ttya
+ren u:\dev\modem2 u:\dev\ttyb
+ren u:\dev\serial1 u:\dev\ttyc
+ren u:\dev\serial2 u:\dev\ttyd
+
+sln d:\usr\bin u:\bin
+sln d:\gnu u:\gnu
+sln d:\usr u:\usr
+sln d:\etc u:\etc
+sln d:\var u:\var
+sln d:\home u:\home
+sln d:\tmp u:\tmp
+
+sln u:\c\mint\mint.tos u:\vmunix
+sln u:\proc\MiNT.000 u:\dev\kmem
+
+sln u:\etc\profile u:\profile

@@ -1,14 +1,15 @@
 /*
- *	mesg.c	-	(C) 09/93 by Torsten Scherer
- *			itschere@techfak.uni-bielefeld.de (Internet)
- *			>>> see COPYING for more info on copyrights <<<
+ *	mesg.c - (C) 1993-94 by TeSche (Torsten Scherer),
+ *	itschere@techfak.uni-bielefeld.de
+ *	may be freely redistributed under the terms of the GNU-GPL
  *
  *	allows or forbids writing to the current terminal for other users,
  *	thus making write() or talk() impossible if you don't want them
  *
- *	BUG:	needs a version of MiNT with XATTR fields in the BiosFS
+ *	BUG:	needs at least MiNT 1.10
  *
  *	V1.0	21.Sep.1993	T.Scherer
+ *	V1.1	19.Jun.1994	T.Scherer, looks a bit more like on SUN-OS now
  */
 
 #include <stat.h>
@@ -26,7 +27,7 @@ char *getttyname()
 	}
 
 	if (access(name, F_OK)) {
-		fprintf(stderr, "Error: Can't access terminal %s!\n", name);
+			fprintf(stderr, "Error: Can't access terminal %s!\n", name);
 		exit(-1);
 	}
 
@@ -56,12 +57,12 @@ void show_mode()
 		exit(-1);
 	}
 
-	if ((st.st_mode & S_IWGRP) && (st.st_mode & S_IWOTH)) {
-		printf("mesg: writes to this terminal are allowed\n");
+	if (st.st_mode & S_IWGRP) {
+		printf("is y\n");
 		return;
 	}
 
-	printf("mesg: writes to this terminal are NOT allowed\n");
+	printf("is n\n");
 }
 
 void change_mode(char *s)
@@ -79,26 +80,27 @@ void change_mode(char *s)
 	name = getttyname();
 
 	if (flag) {
-		if (chmod(name, 402) == 0)
-			printf("mesg: writes to terminal now allowed\n");
-		else
-			fprintf(stderr, "error changing mesg mode to <yes>\n");
+		if (chmod(name, 0620)) {
+			fprintf(stderr, "error changing mesg mode to `yes'\n");
+		}
 	} else {
-		if (chmod(name, 384) == 0)
-			printf("mesg: writes to terminal now forbidden\n");
-		else
-			fprintf(stderr, "error changing mesg mode to <no>\n");
+		if (chmod(name, 0600)) {
+			fprintf(stderr, "error changing mesg mode to `no'\n");
+		}
 	}
 }
 
 void main(int argc, char *argv[])
 {
-	switch(argc)
-	{
-		case 1:	show_mode(); break;
-		case 2: change_mode(argv[1]); break;
-		default: usage(); break;
+	switch(argc) {
+
+		case 1:	show_mode();
+			break;
+
+		case 2: change_mode(argv[1]);
+			break;
+
+		default: usage();
+			break;
 	}
 }
-
-

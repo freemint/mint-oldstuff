@@ -1,6 +1,9 @@
 /*
  * Ttyent.h	A header file for getttyent().
- * Version 1.0 (c) S.R.Usher 1991.
+ * Version 1.0 by S.R.Usher 1991.
+ *
+ * Placed into the public domain on 10th September, 1994.
+ *
  */
 #ifndef _TTYENT_H_
 #define _TTYENT_H_

@@ -1,0 +1,1 @@
+#define MINTOSVERS "MiNTOS Release 1.4.1 (SOMEWHERE) #1: Sat Aug 27 20:11:14 1994 "

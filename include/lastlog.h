@@ -1,6 +1,7 @@
 /*
- * lastlog.h 1.0 for MiNT
+ * lastlog.h 1.0 for MiNT, taken from MiNTOS V1.3
  */
+
 #ifndef _LASTLOG_H_
 #define _LASTLOG_H_
 

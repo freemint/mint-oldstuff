@@ -12,15 +12,8 @@
  *  9/1/92	1.1		S.R.Usher	Allow comment lines starting
  *							with a #.
  *
- * Licence
- * -------
+ * Placed into the public domain on 10th September, 1994.
  *
- * This software may be copied and distributed freely. It may also be modified
- * as long as all changes are logged in the changelog above.
- *
- * If you want to get in contact with me, I can be contacted at:-
- *
- * steve@earth.ox.ac.uk
  */
  
 #include <stdio.h>

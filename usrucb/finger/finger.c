@@ -81,6 +81,10 @@ struct	utmp	utmp;	/* for sizeof */
 struct  person  {			/* one for each person fingered */
 	char		name[NMAX+1];	/* login name */
 	char		tty[LMAX+1];	/* NULL terminated tty line */
+#ifdef REMOTE
+#define HOSTMAX 32
+	char		host[HOSTMAX+1];
+#endif
 	long		loginat;	/* time of login (possibly last) */
 	long		idletime;	/* how long idle (if logged in) */
 	short int	loggedin;	/* flag for being logged in */
@@ -254,6 +258,13 @@ main( argc, argv )
 		    person1->tty[j] = user.ut_line[j];
 		    person1->name[j] = user.ut_name[j];
 		}
+#ifdef REMOTE
+		for (j = 0; j < HOSTMAX; j++)
+		{
+		    person1->host[j] = user.ut_host[j];
+		}
+		person1->host[j] = NULL;
+#endif
 		person1->name[NMAX] = NULL;
 		person1->tty[NMAX] = NULL;
 		person1->loginat = user.ut_time;
@@ -273,6 +284,13 @@ main( argc, argv )
 			p->tty[j] = user.ut_line[j];
 			p->name[j] = user.ut_name[j];
 		    }
+#ifdef REMOTE
+		    for (j = 0; j < HOSTMAX; j++)
+		    {
+		        p->host[j] = user.ut_host[j];
+		    }
+		    p->host[j] = NULL;
+#endif
 		    p->name[NMAX] = NULL;
 		    p->tty[NMAX] = NULL;
 		    p->loginat = user.ut_time;
@@ -451,6 +469,7 @@ main( argc, argv )
 	if( header )  {
 	    if( unquick )  {
 		if( !unshort )  {
+#ifndef REMOTE
 		    if( wide )  {
 			printf(
 "Login       Name              TTY Idle    When            Office\n" );
@@ -459,6 +478,16 @@ main( argc, argv )
 			printf(
 "Login    TTY Idle    When            Office\n" );
 		    }
+#else
+		    if( wide )  {
+			printf(
+"Login       Name              TTY Idle    When            Where\n" );
+		    }
+		    else  {
+			printf(
+"Login    TTY Idle    When            Where\n" );
+		    }
+#endif
 		}
 	    }
 	    else  {
@@ -662,6 +691,9 @@ shortprint( pers )
 	    printf( " <%-6.6s, %-4.4s>", buf+4, buf+20 );
 	else
 	    printf(" <%-12.12s>", buf+4);
+#ifdef REMOTE
+	printf("\t%s", pers->host);
+#else
 	len = strlen( pers->homephone );
 	if(  dialup  &&  (len > 0)  )  {
 	    if( len == 8 )  {
@@ -707,6 +739,7 @@ shortprint( pers )
 		}
 	    }
 	}
+#endif
 	printf( "\n" );
 }
 
@@ -803,7 +836,14 @@ personprint( pers )
 	}
 	if( pers->loggedin )  {
 	    register char *ep = ctime( &pers->loginat );
+#ifdef REMOTE
+	    if (pers->host[0] != 0)
+	        printf("\nOn since %15.15s on %-*.*s from %s\t", &ep[4], LMAX, LMAX, pers->tty, pers->host );
+	    else
+	        printf("\nOn since %15.15s on %-*.*s	", &ep[4], LMAX, LMAX, pers->tty );
+#else
 	    printf("\nOn since %15.15s on %-*.*s	", &ep[4], LMAX, LMAX, pers->tty );
+#endif
 	    idleprinted = ltimeprint( &pers->idletime );
 	    if( idleprinted )  {
 		printf( " Idle Time" );
@@ -817,11 +857,26 @@ personprint( pers )
 #endif
 	else if (tloc - pers->loginat > 180 * 24 * 60 * 60) {
 	    register char *ep = ctime( &pers->loginat );
+#ifdef REMOTE
+	    if (pers->host[0] != 0)
+	        printf("\nLast login %10.10s, %4.4s on %.*s from %s", ep, ep+20, LMAX, pers->tty, pers->host);
+	    else
+	        printf("\nLast login %10.10s, %4.4s on %.*s", ep, ep+20, LMAX, pers->tty);
+#else
 	    printf("\nLast login %10.10s, %4.4s on %.*s", ep, ep+20, LMAX, pers->tty);
+#endif
 	}
 	else  {
 	    register char *ep = ctime( &pers->loginat );
-	    printf("\nLast login %16.16s on %.*s", ep, LMAX, pers->tty );
+#ifdef REMOTE
+	    if (pers->host[0] != 0)
+	        printf("\nLast login %16.16s on %.*s from %s", ep, LMAX, pers->tty, pers->host);
+	    else
+	        printf("\nLast login %16.16s on %.*s", ep, LMAX, pers->tty);
+#else
+	    printf("\nLast login %16.16s on %.*s", ep, LMAX, pers->tty);
+#endif
+
 	}
 	printf( "\n" );
 }

@@ -1,4 +1,4 @@
-wheel:*:0:susher
+wheel:*:0:root susher
 nogroup:*:65534:
 daemon:*:1:
 kmem:*:2:

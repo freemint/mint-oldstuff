@@ -1,0 +1,14 @@
+#
+# Internet Hosts Database
+#
+# Do not change this next line.
+#
+127.0.0.1	localhost loopback lo0 loghost
+#
+# Known internet hosts go here.
+#
+# The format is as follows:-
+#
+# <numberic-address> <name> [*<alias>*]
+#
+192.1.200.1	somewhere somewhere.demon.co.uk

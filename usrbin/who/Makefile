@@ -1,12 +1,15 @@
+include ../../.builddir
+include ../../MakeVars
+
 CFLAGS = $(ADDITIONALCFLAGS)
 
 who: who.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o who who.c
-	../../bin/ttramify who
+	$(FASTRAMPRG) who
 
 clean:
-	/bin/rm who
+	$(RM) who
 
 install: who
-	cp who $(USRBINDIR)/who$(TTPEXT)
-	chmod 0755 $(USRBINDIR)/who$(TTPEXT)
+	$(CP) who $(USRBINDIR)/who$(TTPEXT)
+	$(CHMOD) 0755 $(USRBINDIR)/who$(TTPEXT)

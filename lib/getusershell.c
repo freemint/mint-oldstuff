@@ -1,76 +1,120 @@
+/*
+ * Copyright (c) 1985 Regents of the University of California.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms are permitted
+ * provided that the above copyright notice and this paragraph are
+ * duplicated in all such forms and that any documentation,
+ * advertising materials, and other materials related to such
+ * distribution and use acknowledge that the software was developed
+ * by the University of California, Berkeley.  The name of the
+ * University may not be used to endorse or promote products derived
+ * from this software without specific prior written permission.
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
+ * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+ */
+
+#if defined(LIBC_SCCS) && !defined(lint)
+static char sccsid[] = "@(#)getusershell.c	5.5 (Berkeley) 7/21/88";
+#endif /* LIBC_SCCS and not lint */
+
+#include <sys/param.h>
+#include <sys/file.h>
+#include <sys/stat.h>
+#include <ctype.h>
 #include <stdio.h>
 
-#define MAXSHELLLEN 	80
-#define SHELLSFILE	"/etc/shells"
+#define SHELLS "/etc/shells"
 
-static char buffer[MAXSHELLLEN];
+/*
+ * Do not add local shells here.  They should be added in /etc/shells
+ */
+static char *okshells[] =
+    { "/bin/sh", "/bin/csh", 0 };
 
-#define NUMDEFSHELLS 4
+static char **shells, *strings;
+static char **curshell = NULL;
+extern char **initshells();
 
-static char *default_shells[] = {
-	"/bin/sh",
-	"/bin/csh",
-	"/usr/bin/sh",
-	"/usr/bin/csh"
-};
-
-static int opened = 0;
-static int using_defs = 0;
-static int cur_def_shell = 0;
-static FILE *fp;
-
-void setusershell()
+/*
+ * Get a list of shells from SHELLS, if it exists.
+ */
+char *
+getusershell()
 {
-	if (!opened)
-		if ((fp = fopen(SHELLSFILE, "r")) == NULL)
-			using_defs = 1;
+	char *ret;
 
-	opened = 1;
-
-	if (!using_defs)
-		rewind(fp);
+	if (curshell == NULL)
+		curshell = initshells();
+	ret = *curshell;
+	if (ret != NULL)
+		curshell++;
+	return (ret);
 }
 
-char *getusershell()
+endusershell()
 {
-	if (!opened)
-		setusershell();
-
-	if (using_defs)
-	{
-		if (cur_def_shell < NUMDEFSHELLS)
-		{
-			strcpy(buffer, default_shells[cur_def_shell++]);
-			return buffer;
-		}
-		else
-		{
-			return 0;
-		}
-	}
-	else
-	{
-		if (fgets(buffer, MAXSHELLLEN, fp) != NULL)
-		{
-			buffer[strlen(buffer) - 1] = '\0';
-			return buffer;
-		}
-		else
-			return NULL;
-	}
-}
-
-void endusershell()
-{
-	fclose(fp);
-	cur_def_shell = using_defs = opened = 0;
-}
-
-#ifdef TEST
-main()
-{
-	char *bink;
 	
-	for(;(bink = getusershell()) != NULL; printf("%s\n", bink));
+	if (shells != NULL)
+		free((char *)shells);
+	shells = NULL;
+	if (strings != NULL)
+		free(strings);
+	strings = NULL;
+	curshell = NULL;
 }
-#endif
+
+setusershell()
+{
+
+	curshell = initshells();
+}
+
+static char **
+initshells()
+{
+	register char **sp, *cp;
+	register FILE *fp;
+	struct stat statb;
+	extern char *malloc(), *calloc();
+
+	if (shells != NULL)
+		free((char *)shells);
+	shells = NULL;
+	if (strings != NULL)
+		free(strings);
+	strings = NULL;
+	if ((fp = fopen(SHELLS, "rt")) == (FILE *)0)
+		return(okshells);
+	if (fstat(fileno(fp), &statb) == -1) {
+		(void)fclose(fp);
+		return(okshells);
+	}
+	if ((strings = malloc((unsigned)statb.st_size)) == NULL) {
+		(void)fclose(fp);
+		return(okshells);
+	}
+	shells = (char **)calloc((unsigned)statb.st_size / 3, sizeof (char *));
+	if (shells == NULL) {
+		(void)fclose(fp);
+		free(strings);
+		strings = NULL;
+		return(okshells);
+	}
+	sp = shells;
+	cp = strings;
+	while (fgets(cp, MAXPATHLEN + 1, fp) != NULL) {
+		while (*cp != '#' && *cp != '/' && *cp != '\0')
+			cp++;
+		if (*cp == '#' || *cp == '\0')
+			continue;
+		*sp++ = cp;
+		while (!isspace(*cp) && *cp != '#' && *cp != '\0')
+			cp++;
+		*cp++ = '\0';
+	}
+	*sp = (char *)0;
+	(void)fclose(fp);
+	return (shells);
+}

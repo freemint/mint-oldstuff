@@ -1,12 +1,15 @@
+include ../../.builddir
+include ../../MakeVars
+
 CFLAGS = $(ADDITIONALCFLAGS)
 
 mesg: mesg.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o mesg mesg.c
-	../../bin/ttramify mesg
+	$(FASTRAMPRG) mesg
 
 clean:
-	/bin/rm mesg
+	$(RM) -f mesg
 
 install: mesg
-	cp mesg $(USRBINDIR)/mesg$(TTPEXT)
-	chmod 0755 $(USRBINDIR)/mesg$(TTPEXT)
+	$(CP) mesg $(USRBINDIR)/mesg$(TTPEXT)
+	$(CHMOD) 0755 $(USRBINDIR)/mesg$(TTPEXT)

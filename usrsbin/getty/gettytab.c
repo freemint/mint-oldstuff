@@ -87,6 +87,12 @@ getent(bp, name)
 				}
 				break;
 			}
+#ifdef MINT
+/* Strip out effin' carriage returns so as to support CP/M brain-damage. */
+			if (c == '\r') {
+				continue;
+			}
+#endif
 			if (cp >= bp+TABBUFSIZ) {
 				write(2,"Gettytab entry too long\n", 24);
 				break;

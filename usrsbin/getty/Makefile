@@ -1,5 +1,9 @@
 #	@(#)Makefile	5.12 (Berkeley) 1/21/91
-CPPFLAGS=-I../../include -DMINT
+
+include ../../.builddir
+include ../../MakeVars
+
+CPPFLAGS=-I$(BUILDDIR)/include -DMINT
 CFLAGS=-traditional $(ADDITIONALCFLAGS)
 
 PROG=	getty
@@ -11,13 +15,13 @@ MAN5=	gettytab.0 ttys.0
 MAN8=	getty.0
 
 $(PROG): $(OBJS)
-	$(CC) -o $(PROG) $(OBJS) ../../usretc/syslog/libsyslog.a -liio
-	../../bin/ttramify $(PROG)
+	$(CC) $(CFLAGS) -o $(PROG) $(OBJS) $(BUILDDIR)/usretc/syslog/libsyslog.a
+	$(FASTRAMPRG) $(PROG)
 
 clean:
-	/bin/rm $(PROG) *.o
+	$(RM) $(PROG) *.o
 
 install: $(PROG)
-	-mv $(USRSBINDIR)/$(PROG)$(PRGEXT) $(USRSBINDIR)/$(PROG).old
-	cp $(PROG) $(USRSBINDIR)/$(PROG)$(PRGEXT)
-	chmod 0755 $(USRSBINDIR)/$(PROG)$(PRGEXT)
+	-$(MV) $(USRSBINDIR)/$(PROG)$(PRGEXT) $(USRSBINDIR)/$(PROG).old
+	$(CP) $(PROG) $(USRSBINDIR)/$(PROG)$(PRGEXT)
+	$(CHMOD) 0755 $(USRSBINDIR)/$(PROG)$(PRGEXT)

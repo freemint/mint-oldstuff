@@ -249,7 +249,7 @@ main(argc, argv)
 #endif
 
 		p = getpass("Password:");
-#ifdef MINT
+#ifdef MINTY
 		printf("\n");
 #endif
 
@@ -298,6 +298,9 @@ main(argc, argv)
 		if (pwd && !rval)
 			break;
 
+/* This next line added by S.R.Usher 24/5/94 to fix security bug */
+		rootlogin = 0;
+		
 		(void)printf("Login incorrect\n");
 		failures++;
 		/* we allow 10 tries, but after 3 we start backing off */
@@ -364,13 +367,12 @@ main(argc, argv)
 
 	dolastlog(quietlog);
 
+	chmod(ttyn, 0620);
 	(void)chown(ttyn, pwd->pw_uid,
 	    (gr = getgrnam(TTYGRPNAME)) ? gr->gr_gid : pwd->pw_gid);
 	(void)setgid(pwd->pw_gid);
 
-#ifndef MINT
 	initgroups(username, pwd->pw_gid);
-#endif
 
 	if (*pwd->pw_shell == '\0')
 		pwd->pw_shell = _PATH_BSHELL;
@@ -642,7 +644,7 @@ char *what;
 char *value;
 int idunno;
 {
-	char buffer[32768];
+	static char buffer[32768];
 
 	sprintf(buffer, "%s=%s", what, value);
 

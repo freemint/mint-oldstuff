@@ -1,12 +1,15 @@
+include ../../.builddir
+include ../../MakeVars
+
 CFLAGS = $(ADDITIONALCFLAGS)
 
 sync: sync.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o sync sync.c
-	../../bin/ttramify sync
+	$(FASTRAMPRG) sync
 
 clean:
-	/bin/rm sync
+	$(RM) sync
 
 install: sync
-	cp sync $(USRBINDIR)/sync$(TTPEXT)
-	chmod 0755 $(USRBINDIR)/sync$(TTPEXT)
+	$(CP) sync $(USRBINDIR)/sync$(TTPEXT)
+	$(CHMOD) 0755 $(USRBINDIR)/sync$(TTPEXT)

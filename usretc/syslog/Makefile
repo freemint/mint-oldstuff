@@ -17,6 +17,9 @@
 # @(#)Makefile	5.1 (Berkeley) 9/27/88
 #
 
+include ../../.builddir
+include ../../MakeVars
+
 #
 # compile flags for daemon and library, syslogd needs one or more of
 # -DSYSLOG_KERNEL, -DSYSLOG_UNIXAF and -DSYSLOG_INET
@@ -26,67 +29,76 @@
 #SYSLOGD_FLAGS = -DSYSLOG_KERNEL -DSYSLOG_UNIXAF
 #SYSLOG_FLAGS = -DSYSLOG_UNIXAF
 
-CFLAGS= $(ADDITIONALCFLAGS) -I../../include -I.
+#SYSLOGD_FLAGS = -DSYSLOG_INET
+#SYSLOG_FLAGS = -DSYSLOG_INET
+
+CFLAGS= $(ADDITIONALCFLAGS) -DMINT -I$(BUILDDIR)/include -I.
 
 LIBS	=	libsyslog.a	
 SRCS	=	syslogd.c
-SYSLOGD_OBJS=	syslogd.o ../../lib/libusers.a
+SYSLOGD_OBJS=	syslogd.o $(BUILDDIR)/lib/libusers.a
 OBJS	=	${SYSLOGD_OBJS} syslog_test.o sendlog.o logger.o \
 		syslog.o readlog.o 
 MAN	=	syslogd.0
-LDFLAGS =
+#LDFLAGS = -lsocket
+LDFLAGS = $(BUILDDIR)/lib/libusers.a
 #TARGETS =	syslogd syslog_test sendlog logger readlog libsyslog.a
 # logger won't build with the current mintlibs,
 #	readlog won't ever!
-TARGETS =	syslogd syslog_test sendlog libsyslog.a
+#TARGETS =	syslogd syslog_test sendlog libsyslog.a
+TARGETS =	libsyslog.a syslogd syslog_test sendlog logger
 
 all:	${TARGETS}	
 
 /usr/lib/libresolv.a:
-	@echo "You need to build libresolv.a first"
+	@$(ECHO) "You need to build libresolv.a first"
 	@false
 
 syslog.o: syslog.c
 	${CC} -c  ${CFLAGS} ${SYSLOG_FLAGS} syslog.c
 
 libsyslog.a:	syslog.o
-	ar r libsyslog.a syslog.o
+	$(AR) r libsyslog.a syslog.o
 
 syslogd.o: syslogd.c
 	${CC} -traditional -c  ${CFLAGS} ${SYSLOGD_FLAGS} syslogd.c
 
 readlog: readlog.o syslog.o
 	${CC}  -o $@ ${CFLAGS} readlog.o syslog.o  ${LDFLAGS}
-	../../bin/ttramify $@
+	$(FASTRAMPRG) $@
 
 syslogd: $(SYSLOGD_OBJS)
 	${CC} -o $@ ${CFLAGS} $(SYSLOGD_OBJS) ${LDFLAGS}
-	../../bin/ttramify $@
+	$(FASTRAMPRG) $@
 
 syslog_test: syslog_test.o syslog.o ${LIBS}
 	${CC} ${CFLAGS} -o syslog_test syslog_test.o syslog.o ${LDFLAGS}
-	../../bin/ttramify $@
+	$(FASTRAMPRG) $@
 
 sendlog: sendlog.o syslog.o ${LIBS}
 	${CC}  ${CFLAGS} -o sendlog sendlog.o syslog.o ${LDFLAGS}
-	../../bin/ttramify $@
+	$(FASTRAMPRG) $@
 
 logger: logger.o syslog.o ${LIBS}
 	${CC}  ${CFLAGS} -o logger logger.o syslog.o ${LDFLAGS}
-	../../bin/ttramify $@
+	$(FASTRAMPRG) $@
 
 clean:
-	rm -f ${OBJS} core ${TARGETS}
+	$(RM) -f ${OBJS} core ${TARGETS}
 
 cleandir: clean
-	rm -f ${MAN} tags .depend
+	$(RM) -f ${MAN} tags .depend
 
 depend: ${SRCS}
 	mkdep -p ${CFLAGS} ${SRCS}
 
 install: syslogd # ${MAN}
-	cp syslogd $(USRETCDIR)/syslogd$(TTPEXT)
-	chmod 0755 $(USRETCDIR)/syslogd$(TTPEXT)
+	$(CP) syslogd $(USRETCDIR)/syslogd$(TTPEXT)
+	$(CHMOD) 0755 $(USRETCDIR)/syslogd$(TTPEXT)
+	$(CP) sendlog $(USRBINDIR)/sendlog$(TTPEXT)
+	$(CHMOD) 0755 $(USRBINDIR)/sendlog$(TTPEXT)
+	$(CP) logger $(USRBINDIR)/logger$(TTPEXT)
+	$(CHMOD) 0755 $(USRBINDIR)/logger$(TTPEXT)
 #	install -s -o bin -g bin -m 755 syslogd ${DESTDIR}/etc/syslogd
 # 	install -c -o bin -g bin -m 444 syslogd.0 ${DESTDIR}/usr/man/cat8
 

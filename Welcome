@@ -1,0 +1,26 @@
+Welcome to MiNTOS Release 1.4.1
+-------------------------------
+
+This is still a development version of this package, and as such there is
+little documentation (at least until I've learnt how to use the nroff man
+package). If anyone wants to offer their services in this respect, I'd be
+greatful. In the mean time, as Eric Smith says, "Use the source Luke!".
+
+Essentially, most of the programs are very much like their BSD equivalents,
+within the limitations of MiNT, indeed many ARE the BSD versions.
+
+In the "etc" directory I've included example start-up files, including those
+for popular shells such as tcsh, ash and Bash.
+
+If you have any bug fixes, bug reports etc. don't hesitate to contact me.
+Hopefully we can build this package into something which makes MiNT usable
+as a true multi-user system.
+
+Anyway, have a play and have fun!
+
+Stephen Usher
+
+Contact me using the following email addresses:-
+
+Preferred address	Stephen.Usher@earth.ox.ac.uk
+MiNT mailing list	mint@atari.archive.umich.edu

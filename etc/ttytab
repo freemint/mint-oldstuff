@@ -4,11 +4,11 @@
 #
 # The names of the ports are changed using the mint.cnf file.
 #
-console	"/usr/etc/getty console"	st52		on secure
-ttya	"/usr/etc/getty std.2400"	dialup		off secure	# v:/modem1
-ttyb	"/usr/etc/getty std.1200"	dialup		off secure	# v:/modem2
-ttyc	"/usr/etc/getty std.9600"	dialup		off secure	# v:/serial1
-ttyd	"/usr/etc/getty std.9600"	dialup		off secure	# v:/serial2
+console	"/usr/sbin/getty console"	st52		on secure
+ttya	"/usr/sbin/getty std.2400"	dialup		off secure	# v:/modem1
+ttyb	"/usr/sbin/getty std.1200"	dialup		off secure	# v:/modem2
+ttyc	"/usr/sbin/getty std.9600"	dialup		off secure	# v:/serial1
+ttyd	"/usr/sbin/getty std.9600"	dialup		off secure	# v:/serial2
 #
 # Psuedo-terminals. MGR uses these, and they will also get used if Dave Gymer
 # ever gets round to doing a TCP/IP server with telnet. (He may also use

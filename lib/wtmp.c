@@ -1,5 +1,8 @@
 /*
  * BSD style wtmp updating routine Version 1.0 (c) S.R.Usher 1991.
+ *
+ * Note: this is a MiNTOS utility routine, not a standard UNIX routine.
+ *
  */
 
 #include <stdio.h>

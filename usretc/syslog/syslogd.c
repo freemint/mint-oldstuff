@@ -53,11 +53,11 @@ static char sccsid[] = "@(#)syslogd.c	5.27 (Berkeley) 10/10/88";
  *		SYSLOG_UNIXAF	- listen on unix domain socket
  *		SYSLOG_KERNEL	- listen to linux kernel
  *
- * Stephen Usher: Add support for MiNT on Atari machines, #define atarist to
+ * Stephen Usher: Add support for MiNT on Atari machines, #define MINT to
  *		activate the changes.
  */
 
-#ifndef atarist
+#if !defined(MINT) || defined(MINTNET)
 #define	MAXLINE		1024		/* maximum line length */
 #else
 #define	MAXLINE		960		/* maximum line length */
@@ -85,7 +85,7 @@ static char sccsid[] = "@(#)syslogd.c	5.27 (Berkeley) 10/10/88";
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
-#ifndef atarist
+#ifndef MINT
 #include <sys/socket.h>
 #include <sys/file.h>
 #ifdef SYSV
@@ -96,22 +96,27 @@ static char sccsid[] = "@(#)syslogd.c	5.27 (Berkeley) 10/10/88";
 #include <sys/uio.h>
 #include <sys/un.h>
 #else
+#ifdef MINTNET
+#include <sys/socket.h>
+#endif /* MINTNET */
 #include <sys/file.h>
 #include <fcntl.h>
-
+#ifndef MINTNET
 struct  iovec {
 	char *	iov_base;
 	int	iov_len;
 };
-
+#endif
 #endif
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/signal.h>
 
-#ifndef atarist
+#if !defined(MINT) || defined(MINTNET)
 #include <netinet/in.h>
+#ifndef MINTNET
 #include <netdb.h>
+#endif
 #else
 
 struct sockaddr {
@@ -131,7 +136,7 @@ char	*ConfFile = "/etc/syslog.conf";
 char	*PidFile = "/etc/syslog.pid";
 char	ctty[] = CTTY;
 
-#ifdef atarist
+#if defined(MINT)
 #include <setjmp.h>
 #include <osbind.h>
 char	*PipeName = "\\pipe\\log";
@@ -280,7 +285,7 @@ extern	int errno, sys_nerr;
 extern	char *sys_errlist[];
 extern	char *ctime(), *index(), *calloc();
 
-#ifdef atarist
+#ifdef MINT
 /* on MiNT fork and vfork both block until the child does either exec or
    dies.  only tfork doesn't block but it works like a subroutine call... */
 static jmp_buf	tforkj;
@@ -339,7 +344,7 @@ main(argc, argv)
 		usage();
 
 	if (!Debug) {
-#ifndef atarist
+#ifndef MINT
 		if (fork())
 			exit(0);
 #else
@@ -379,25 +384,26 @@ main(argc, argv)
 	(void) signal(SIGQUIT, SIG_IGN);
 	(void) signal(SIGCHLD, reapchild);
 	(void) signal(SIGALRM, domark);
-#ifdef atarist
+#ifdef MINT
 	signal(SIGTTOU, SIG_IGN);
 #endif
 	(void) alarm(TIMERINTVL);
 	(void) unlink(LogName);
 
-#ifndef atarist
+#ifndef SYSLOG_INET
+#if !defined(MINT) || defined(MINTNET)
 	sunx.sun_family = AF_UNIX;
 	(void) strncpy(sunx.sun_path, LogName, sizeof sunx.sun_path);
 	funix = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if (funix < 0 || bind(funix, (struct sockaddr *) &sunx,
 	    sizeof(sunx.sun_family)+strlen(sunx.sun_path)) < 0 ||
 	    chmod(LogName, 0666) < 0 || listen(funix, 5) < 0) {
-#else /* atarist */`
+#else /* MINT */
 	funix = open(PipeName, O_RDWR | O_CREAT | O_TRUNC);
 /*	funix = Fcreate(PipeName, 0); */
 	if (funix < 0 || symlink(PipeName, LogName) < 0 ||
 		chmod(PipeName, 0666) < 0 || chmod(LogName, 0666)) {
-#endif /* atarist */
+#endif /* MINT */
 		(void) sprintf(line, "cannot create %s", LogName);
 		logerror(line);
 		dprintf("cannot create %s (%d)\n", LogName, errno);
@@ -405,8 +411,9 @@ main(argc, argv)
 		die(0);
 #endif
 	}
+#endif /* SYSLOG_INET */
 
-#ifdef atarist
+#if defined(MINT) && !defined(MINTNET)
 	ioctl(funix, FIONREAD, &len);
 
 	if (len > 0)
@@ -444,7 +451,7 @@ main(argc, argv)
 	}
 #endif
 
-#ifndef atarist
+#ifndef MINT
 #ifndef SYSV
 	if ((fklog = open("/dev/klog", O_RDONLY)) >= 0)
 	if ((fklog = open("/dev/errlog", O_RDONLY)) >= 0)
@@ -455,7 +462,7 @@ main(argc, argv)
 		klogm = 0;
 	}
 #endif
-#endif /* atarist */
+#endif /* MINT */
 	/* tuck my process id away */
 	fp = fopen(PidFile, "w");
 	if (fp != NULL) {
@@ -573,7 +580,7 @@ main(argc, argv)
 		} 
 #endif
 
-#ifdef atarist
+#if defined(MINT) && !defined(MINTNET)
 		if (FDMASK(funix) & readfds) {
 			int len;
 
@@ -894,7 +901,7 @@ fprintlog(f, flags, msg)
 		break;
 
 	case F_FORW:
-#ifndef atarist
+#if !defined(MINT) || defined(MINTNET)
 		dprintf(" %s\n", f->f_un.f_forw.f_hname);
 /*		(void) sprintf(line, "<%d>%.15s %s", f->f_prevpri,	ASP*/
 		(void) sprintf(line, "<%d> %s", LOG_PRI(f->f_prevpri),
@@ -912,7 +919,7 @@ fprintlog(f, flags, msg)
 			errno = e;
 			logerror("sendto");
 		}
-#endif /* atarist */
+#endif /* MINT */
 		break;
 
 	case F_CONSOLE:
@@ -957,16 +964,16 @@ fprintlog(f, flags, msg)
 				errno = e;
 				logerror(f->f_un.f_fname);
 			}
-#ifndef atarist
+#ifndef MINT
 		} else if (flags & SYNC_FILE)
 #ifndef linux
 			(void) fsync(f->f_file);
 #else
 			sync();
 #endif
-#else /* atarist */
+#else /* MINT */
 		}
-#endif /* atarist */
+#endif /* MINT */
 		break;
 
 	case F_USERS:
@@ -1098,7 +1105,7 @@ reapchild()
 		;
 #endif
 }
-#ifndef atarist
+#if !defined(MINT) || defined(MINTNET)
 /*
  * Return a printable representation of a host address.
  */
@@ -1125,7 +1132,7 @@ char *cvthname(f)
 		*p = '\0';
 	return (hp->h_name);
 }
-#endif /* atarist */
+#endif /* MINT */
 
 domark()
 {
@@ -1429,7 +1436,7 @@ cfline(line, f)
 	switch (*p)
 	{
 	case '@':
-#ifndef atarist
+#if !defined(MINT) || defined(MINTNET)
 		if (!InetInuse)
 			break;
 		(void) strcpy(f->f_un.f_forw.f_hname, ++p);

@@ -1,63 +1,53 @@
-# This is where mint.prg sits, init.prg should be in the same place unless
-#   you have directed mint to look elsewhere using a mint.cnf file.
-
-MINTDIR=/c/mint
-
-# This is where all your executables are held.
-
-USRSBINDIR=/usr/sbin
-USRBINDIR=/usr/bin
-USRUCBDIR=/usr/ucb
-USRETCDIR=/usr/etc
-
-# This is the directory which will be come /etc using a symbolic link set up
-# in your mint.cnf. For OS's other than MiNT leave it as /etc.
-
-ETCDIR=/etc
-
-# This is the extention given to executables which will be called from the
-# command line.
-
-TTPEXT=
-
-# This is the extention given to init, MiNT expects it to be .prg.
-
-PRGEXT=
-
-SHELL=/bin/sh
-ADDITIONALCFLAGS=-O2
-#CC=cgcc
-#AR=car
-CC=cc
-AR=ar
-MAKE=make CC=$(CC) AR=$(AR) ADDITIONALCFLAGS="$(ADDITIONALCFLAGS)" \
-	MINTDIR=$(MINTDIR) USRSBINDIR=$(USRSBINDIR) \
-	USRBINDIR=$(USRBINDIR) USRUCBDIR=$(USRUCBDIR) \
-	USRETCDIR=$(USRETCDIR) ETCDIR=$(ETCDIR)
+include MakeVars
 
 SUBDIRS=usretc usrsbin usrbin usrucb
 
-all: lib subdirs
+all: .builddir announce lib subdirs finish
+
+.builddir:
+	@bin/echo BUILDDIR = $(PWD) > .builddir
+
+announce:
+	@$(SHELL) makever.sh
+	@$(ECHO)
+	@$(ECHO) "Starting build of MiNTOS Release "`cat .relnum`" ("$(CONFIGNAME)") #"`cat .version`": "`date`
+	@$(ECHO)
+	@$(ECHO) "MiNTOS Release "`cat .relnum`" ("$(CONFIGNAME)") #"`cat .version`": "`date` > etc/motd
+	@$(ECHO) >> etc/motd
+#
+	@$(ECHO) "This is MiNTOS Release "`cat .relnum` > Version
+	@$(ECHO) "config name: "$(CONFIGNAME) >> Version
+	@$(ECHO) "build number: "`cat .version` >> Version
+	@$(ECHO) "Dated: "`date` >> Version
+
+finish:
+	@$(ECHO)
+	@$(ECHO) "Finished build of MiNTOS Release "`cat .relnum`" ("$(CONFIGNAME)") #"`cat .version`": "`date`
+	@$(ECHO)
+	@$(ECHO) 'Become root (superuser), copy the files from the "etc" directory'
+	@$(ECHO) 'into /etc and then type "make install" to complete the installation.'
+	@$(ECHO)
 
 lib: lib/libusers.a
 
-lib/libusers.a: lib/utmp.c lib/wtmp.c
-	cd lib ; $(MAKE)
+lib/libusers.a: lib/cfsetspeed.c lib/chroot.c lib/daemon.c lib/fcrypt.c lib/getloadavg.c lib/getpass.c lib/getttyent.c lib/getusershell.c lib/initgrp.c lib/itimer.c lib/login.c lib/login_tty.c lib/logout.c lib/logwtmp.c lib/mint.c lib/pty.c lib/pwcache.c lib/readv.c lib/setenv.c lib/sigvec.c lib/strcasecmp.c lib/strncasecmp.c lib/strsep.c lib/syslog.c lib/utmp.c lib/writev.c lib/wtmp.c
+	@cd lib ; $(MAKE)
 
 subdirs:
-	for file in $(SUBDIRS) ; do cd $$file ; echo $$file ; $(MAKE); cd .. ; done
+	@for file in $(SUBDIRS) ; do cd $$file ; $(MAKE); cd .. ; done
 
-install:
-	for file in $(SUBDIRS) ; do cd $$file ; echo $$file ; $(MAKE) install; cd .. ; done
+install: .builddir
+	@for file in $(SUBDIRS) ; do cd $$file ; $(MAKE) install; cd .. ; done
 
 man:
-	cp man/ac.8 /usr/man/man8
-	cp man/getty.8 /usr/man/man8
-	cp man/gettytab.5 /usr/man/man5
-	cp man/login.1 /usr/man/man1
-	cp man/su.1 /usr/man/man1
-	cp man/ttys.5 /usr/man/man5
-	cp man/wlogin.1 /usr/man/man1
+	$(CP) man/ac.8 /usr/man/man8
+	$(CP) man/getty.8 /usr/man/man8
+	$(CP) man/gettytab.5 /usr/man/man5
+	$(CP) man/login.1 /usr/man/man1
+	$(CP) man/su.1 /usr/man/man1
+	$(CP) man/ttys.5 /usr/man/man5
+	$(CP) man/wlogin.1 /usr/man/man1
 
-clean:
-	for file in $(SUBDIRS) ; do cd $$file ; echo $$file ; $(MAKE) clean; cd .. ; done
+clean:	.builddir
+	@for file in $(SUBDIRS) ; do cd $$file ; $(MAKE) clean; cd .. ; done
+	-@$(RM) .version .builddir

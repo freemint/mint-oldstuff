@@ -1,13 +1,16 @@
+include ../../.builddir
+include ../../MakeVars
+
 CFLAGS = $(ADDITIONALCFLAGS)
-CPPFLAGS = -DWTMP=\"/var/adm/wtmp\"
+CPPFLAGS = -DWTMP=\"/var/adm/wtmp\" -DRLOGIN
 
 last: last.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o last last.c
-	../../bin/ttramify last
+	$(FASTRAMPRG) last
 
 clean:
-	/bin/rm last
+	$(RM) last
 
 install: last
-	cp last $(USRUCBDIR)/last$(TTPEXT)
-	chmod 0755 $(USRUCBDIR)/last$(TTPEXT)
+	$(CP) last $(USRUCBDIR)/last$(TTPEXT)
+	$(CHMOD) 0755 $(USRUCBDIR)/last$(TTPEXT)

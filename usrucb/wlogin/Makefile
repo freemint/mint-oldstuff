@@ -1,13 +1,16 @@
+include ../../.builddir
+include ../../MakeVars
+
 CFLAGS = $(ADDITIONALCFLAGS)
-EXTRALIBS = ../../lib/libusers.a
+EXTRALIBS = $(BUILDDIR)/lib/libusers.a
 
 wlogin: wlogin.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o wlogin wlogin.c $(EXTRALIBS)
-	../../bin/ttramify wlogin
+	$(FASTRAMPRG) wlogin
 
 clean:
-	/bin/rm wlogin
+	$(RM) wlogin
 
 install: wlogin
-	cp wlogin $(USRUCBDIR)/wlogin$(TTPEXT)
-	chmod 0755 $(USRUCBDIR)/wlogin$(TTPEXT)
+	$(CP) wlogin $(USRUCBDIR)/wlogin$(TTPEXT)
+	$(CHMOD) 0755 $(USRUCBDIR)/wlogin$(TTPEXT)

@@ -1,0 +1,48 @@
+What's new?
+-----------
+
+Release 1.4.1
+-------------
+
+Bug fix release.
+
+getty now reads gettytab even if it has CP/M or MSDOS end of line markers
+(ie. CR-LF).
+
+The version of getloadavg.c has been fixed so it now works.
+
+init has been fixed so that it always prints to the console rather than its
+stdout/stderr.
+
+Release 1.4
+-----------
+
+Many bug fixes including a glaring security bug in the Net-2 BSD login program.
+
+A new setup for the Makefiles, each now includes the "MakeVars" file rather
+than picking up the settings from the command line. The old way was getting
+way over the top.
+
+wall(1) and hostname(1) have been added, though you can't set the hostname
+using hostname(1) yet. finger now knows how to display the hostname of a
+remote machine if someone if logged in remotely (via rlogin or telnet).
+
+The "etc" directory has been augmented so as to include sample files for
+MiNTnet, the rc files are also MiNTnet ready. The rc files themselves have
+been reworked quite a bit, so I suggest that use use the ones supplied and
+then modify them to suit your taste later. The sample "mint.cnf" file has
+been moved into its own directory.
+
+The included library is now merged with Kay Roemer's Portlib and some more
+routines (such as getloadavg()) have been added. The version I merged with
+was Portlib-07.
+
+I'm now including a set of programs which are used to build and install the
+programs, all you have to supply is the C compiler!
+
+The "/etc/motd" file is now updated every time you boot to give the correct
+version information, this is so as to help me work out which version of the
+package someone is using when they give a bug report. The program which does
+this blindly replaces the first line with the info, so if you want to keep
+the text from your original message of the day make sure that you have at
+least one blank line at the top before rebooting.

@@ -1,12 +1,16 @@
+include ../../.builddir
+include ../../MakeVars
+
 CFLAGS = $(ADDITIONALCFLAGS)
 
-write: write.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) -o write write.c
-	../../bin/ttramify write
+write: write.o myaccess.o
+	$(CC) $(CFLAGS) write.o myaccess.o -o write
+	$(FASTRAMPRG) write
 
 clean:
-	/bin/rm write
+	$(RM) -f write
 
 install: write
-	cp write $(USRBINDIR)/write$(TTPEXT)
-	chmod 0755 $(USRBINDIR)/write$(TTPEXT)
+	$(CP) write $(USRBINDIR)/write$(TTPEXT)
+	$(CHGRP) tty $(USRBINDIR)/write$(TTPEXT)
+	$(CHMOD) 2711 $(USRBINDIR)/write$(TTPEXT)

@@ -1,20 +1,23 @@
-CPPFLAGS = -I../../include -DMINT
+include ../../.builddir
+include ../../MakeVars
+
+CPPFLAGS = -I$(BUILDDIR)/include -DMINT
 CFLAGS = $(ADDITIONALCFLAGS)
-EXTRALIBS = ../../lib/libusers.a ../../usretc/syslog/libsyslog.a
+EXTRALIBS = $(BUILDDIR)/lib/libusers.a $(BUILDDIR)/usretc/syslog/libsyslog.a
 
 TARGET = login
-OBJS = login.o klogin.o
+OBJS = login.o klogin.o $(EXTRALIBS)
 
 $(TARGET): $(OBJS)
-	$(CC) -o $(TARGET) $(OBJS) $(EXTRALIBS)
-	../../bin/ttramify $(TARGET)
+	$(CC) -o $(TARGET) $(OBJS)
+	$(FASTRAMPRG) $(TARGET)
 
 login.o: login.c pathnames.h
 klogin.o: klogin.c pathnames.h
 
 clean:
-	/bin/rm $(TARGET) *.o
+	$(RM) $(TARGET) *.o
 
 install: $(TARGET)
-	cp $(TARGET) $(USRBINDIR)/$(TARGET)$(TTPEXT)
-	chmod 4755 $(USRBINDIR)/$(TARGET)$(TTPEXT)
+	$(CP) $(TARGET) $(USRBINDIR)/$(TARGET)$(TTPEXT)
+	$(CHMOD) 4755 $(USRBINDIR)/$(TARGET)$(TTPEXT)

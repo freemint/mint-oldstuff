@@ -40,13 +40,23 @@ if [ -f /usr/lib/update ] ; then
 fi
 
 if [ -f /etc/cron ] ; then
-#	/etc/cron > /dev/null 2>&1 &
+	/etc/cron > /dev/null 2>&1 &
 	echo -n " cron"
 fi
 
 echo "."
 
 echo -n "starting network daemons:"
+
+if [ -f /usr/etc/inetd ] ; then
+	echo -n " inetd"
+	/usr/etc/inetd
+fi
+
+if [ -f /usr/etc/rpc.rstatd ] ; then
+	echo -n " rstatd"
+	/usr/etc/rpc.rstatd
+fi
 
 # Start up the printer daemon.
 

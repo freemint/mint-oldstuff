@@ -16,7 +16,7 @@
 # entries, and in cases where getty is called with no table name
 #
 default:\
-	:np:lm=\r\n%h login\72 :sp#9600:
+	:np:lm=\r\n%h login\72 :sp#9600:im=MiNT 1.10 (%h)\n\r\n:
 
 #
 # Fixed speed entries
@@ -29,94 +29,94 @@ default:\
 #	be assigned to any table desired (hopefully the same speed).
 #
 a|std.110|110-baud:\
-	:nd#1:cd#1:uc:sp#110:
+	:nd#1:cd#1:uc:sp#110:im=:
 b|std.134|134.5-baud:\
-	:np:nd#1:cd#2:fd#1:td#1:sp#134:ht:nl:
+	:np:nd#1:cd#2:fd#1:td#1:sp#134:ht:nl:im=:
 1|std.150|150-baud:\
-	:np:nd#1:cd#2:td#1:fd#1:sp#150:ht:nl:lm=\E\72\6\6\17login\72 :
+	:np:nd#1:cd#2:td#1:fd#1:sp#150:ht:nl:lm=\E\72\6\6\17login\72 :im=:
 c|std.300|300-baud:\
-	:nd#1:cd#1:sp#300:
+	:nd#1:cd#1:sp#300:im=:
 d|std.600|600-baud:\
-	:nd#1:cd#1:sp#600:
+	:nd#1:cd#1:sp#600:im=:
 f|std.1200|1200-baud:\
-	:fd#1:sp#1200:
+	:fd#1:sp#1200:im=:
 6|std.2400|2400-baud:\
-	:sp#2400:ht:
+	:sp#2400:ht:im=:
 7|std.4800|4800-baud:\
-	:sp#4800:ht:
+	:sp#4800:ht:im=:
 2|std.9600|9600-baud:\
-	:sp#9600:
+	:sp#9600:im=:
 g|std.19200|19200-baud:\
-	:sp#19200:
+	:sp#19200:im=:
 h|std.38400|38400-baud:\
-	:sp#38400:
+	:sp#38400:im=:
 
 #
 # Dial in rotary tables, speed selection via 'break'
 #
 0|d300|Dial-300:\
-	:nx=d1200:cd#2:sp#300:
+	:nx=d1200:cd#2:sp#300:im=:
 d1200|Dial-1200:\
-	:nx=d150:fd#1:sp#1200:
+	:nx=d150:fd#1:sp#1200:im=:
 d150|Dial-150:\
-	:nx=d110:lm@:tc=150-baud:
+	:nx=d110:lm@:tc=150-baud:im=:
 d110|Dial-110:\
-	:nx=d300:tc=300-baud:
+	:nx=d300:tc=300-baud:im=:
 
 #
 # Odd special case terminals
 #
 -|tty33|asr33|Pity the poor user of this beast:\
-	:tc=110-baud:
+	:tc=110-baud:im=:
 
 4|Console|Console Decwriter II:\
-	:co:nd@:cd@:rw:tc=300-baud:
+	:co:nd@:cd@:rw:tc=300-baud:im=:
 
 e|Console-1200|Console Decwriter III:\
-	:fd@:nd@:cd@:rw:tc=1200-baud:
+	:fd@:nd@:cd@:rw:tc=1200-baud:im=:
 
 i|Interdata console:\
-	:uc:sp#0:
+	:uc:sp#0:im=:
 
 l|lsi chess terminal:\
-	:sp#300:
+	:sp#300:im=:
 
 X|Xwindow|X window system:\
-	:fd@:nd@:cd@:rw:sp#9600:
+	:fd@:nd@:cd@:rw:sp#9600:im=:
 
 #
 # Fast dialup terminals, 2400/1200/300 rotary (can start either way)
 #
 D2400|Fast-Dial-2400:\
-	:nx=D1200:tc=2400-baud:
+	:nx=D1200:tc=2400-baud:im=:
 3|D1200|Fast-Dial-1200:\
-	:nx=D300:fd@:tc=1200-baud:
+	:nx=D300:fd@:tc=1200-baud:im=:
 5|D300|Fast-Dial-300:\
-	:nx=D2400:tc=300-baud:
+	:nx=D2400:tc=300-baud:im=:
 
 #
 # Wierdo special case for fast crt's with hardcopy devices
 #
 8|T9600|CRT with hardcopy:\
-	:nx=T300:tc=9600-baud:
+	:nx=T300:tc=9600-baud:im=:
 9|T300|CRT with hardcopy (300):\
-	:nx=T9600:tc=300-baud:
+	:nx=T9600:tc=300-baud:im=:
 
 #
 # Plugboard, and misc other terminals
 #
 p|P9600|Plugboard-9600:\
-	:nx=P300:tc=9600-baud:
+	:nx=P300:tc=9600-baud:im=:
 q|P300|Plugboard-300:\
-	:nx=P1200:tc=300-baud:
+	:nx=P1200:tc=300-baud:im=:
 r|P1200|Plugboard-1200:\
-	:nx=P9600:tc=1200-baud:
+	:nx=P9600:tc=1200-baud:im=:
 
 #
 # XXXX Port selector
 #
 s|DSW|Port Selector:\
-	:ps:sp#2400:
+	:ps:sp#2400:im=:
 
 #
 # Auto-baud speed detect entry for Micom 600.
@@ -124,4 +124,4 @@ s|DSW|Port Selector:\
 # to one of the NNN-baud entries.
 #
 A|Auto-baud:\
-	:ab:sp#2400:f0#040:
+	:ab:sp#2400:f0#040:im=:

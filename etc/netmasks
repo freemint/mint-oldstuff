@@ -1,0 +1,8 @@
+
+#
+# Network masks database
+#
+# only non-default subnet masks need to be defined here
+#
+# Network	netmask
+163.1		255.255.255.0

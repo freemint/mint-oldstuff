@@ -177,7 +177,7 @@ main(argc, argv)
 		/* if target requires a password, verify it */
 		if (*pwd->pw_passwd) {
 			p = getpass("Password:");
-#ifdef MINT
+#ifdef MINTY
 			printf("\n");
 #endif
 			if (strcmp(pwd->pw_passwd, crypt(p, pwd->pw_passwd))) {
@@ -243,13 +243,11 @@ main(argc, argv)
 
 	if (!asme) {
 		if (asthem) {
-			p = getenv("TERM");
 			cleanenv[0] = _PATH_DEFPATH;
 			cleanenv[1] = NULL;
 #ifdef BSD44
 			environ = cleanenv;
 #endif
-			(void)setenv("TERM", p, 1);
 			if (chdir(pwd->pw_dir) < 0) {
 				fprintf(stderr, "su: no directory\n");
 				exit(1);
@@ -257,6 +255,8 @@ main(argc, argv)
 		}
 		if (asthem || pwd->pw_uid)
 			(void)setenv("USER", pwd->pw_name, 1);
+		p = getenv("TERM");
+		(void)setenv("TERM", p, 1);
 		(void)setenv("HOME", pwd->pw_dir, 1);
 		(void)setenv("SHELL", shell, 1);
 	}
@@ -472,7 +472,7 @@ char *what;
 char *value;
 int idunno;
 {
-	char buffer[32768];
+	static char buffer[32768];
 
 	sprintf(buffer, "%s=%s", what, value);
 

@@ -1,12 +1,15 @@
+include ../../.builddir
+include ../../MakeVars
+
 CFLAGS = $(ADDITIONALCFLAGS)
 
 talk: talk.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o talk talk.c -lcurses -ltermcap
-	../../bin/ttramify talk
+	$(FASTRAMPRG) talk
 
 clean:
-	/bin/rm talk
+	$(RM) talk
 
 install: talk
-	cp talk $(USRUCBDIR)/talk$(TTPEXT)
-	chmod 0755 $(USRUCBDIR)/talk$(TTPEXT)
+	$(CP) talk $(USRUCBDIR)/talk$(TTPEXT)
+	$(CHMOD) 0755 $(USRUCBDIR)/talk$(TTPEXT)

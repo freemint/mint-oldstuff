@@ -2,6 +2,8 @@
 #
 # This is run when the system is booted in single-user mode.
 #
+HOME=/; export HOME
+PATH=/usr/bin:/usr/ucb:/usr/etc:/usr/lib ; export PATH
 
 /bin/cat < /dev/null > /etc/single
 

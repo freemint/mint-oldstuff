@@ -1,19 +1,22 @@
-CPPFLAGS = -I../../include -DMINT
+include ../../.builddir
+include ../../MakeVars
+
+CPPFLAGS = -I$(BUILDDIR)/include -DMINT
 CFLAGS = $(ADDITIONALCFLAGS)
-EXTRALIBS = ../../lib/libusers.a ../../usretc/syslog/libsyslog.a
+EXTRALIBS = $(BUILDDIR)/lib/libusers.a $(BUILDDIR)/usretc/syslog/libsyslog.a
 
 TARGET = su
-OBJS = su.o
+OBJS = su.o $(EXTRALIBS)
 
 $(TARGET): $(OBJS)
-	$(CC) -o $(TARGET) $(OBJS) $(EXTRALIBS)
-	../../bin/ttramify $(TARGET)
+	$(CC) -o $(TARGET) $(OBJS)
+	$(FASTRAMPRG) $(TARGET)
 
 su.o: su.c
 
 clean:
-	/bin/rm $(TARGET) *.o
+	$(RM) $(TARGET) *.o
 
 install: $(TARGET)
-	cp $(TARGET) $(USRBINDIR)/$(TARGET)$(TTPEXT)
-	chmod 4755 $(USRBINDIR)/$(TARGET)$(TTPEXT)
+	$(CP) $(TARGET) $(USRBINDIR)/$(TARGET)$(TTPEXT)
+	$(CHMOD) 4755 $(USRBINDIR)/$(TARGET)$(TTPEXT)

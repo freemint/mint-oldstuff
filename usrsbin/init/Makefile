@@ -1,17 +1,26 @@
 # Makefile for init
-CFLAGS= $(ADDITIONALCFLAGS)
-CPPFLAGS = -I../../include -DMINT -DSYNC_FILESYS
 
-EXTRALIBS = ../../lib/libusers.a
+include ../../.builddir
+include ../../MakeVars
+
+CFLAGS= $(ADDITIONALCFLAGS)
+CPPFLAGS = -I$(BUILDDIR)/include -DMINT -DSYNC_FILESYS
+
+EXTRALIBS = $(BUILDDIR)/lib/libusers.a
 
 init: init.o $(EXTRALIBS)
 	$(CC) -o $@ $(CFLAGS) init.o $(EXTRALIBS)
-	../../bin/ttramify init
+	$(FASTRAMPRG) init
+
+init.o: version.h init.c
+
+version.h: $(BUILDDIR)/etc/motd
+	@$(ECHO) \#define MINTOSVERS \"`cat $(BUILDDIR)/etc/motd`\" > version.h
 
 clean:
-	/bin/rm init *.o
+	$(RM) init *.o
 
 install: init
-	-mv $(USRSBINDIR)/init$(PRGEXT) $(USRSBINDIR)/init.old
-	cp init $(USRSBINDIR)/init$(PRGEXT)
-	chmod 0755 $(USRSBINDIR)/init$(PRGEXT)
+	-$(MV) $(USRSBINDIR)/init$(PRGEXT) $(USRSBINDIR)/init.old
+	$(CP) init $(USRSBINDIR)/init$(PRGEXT)
+	$(CHMOD) 0755 $(USRSBINDIR)/init$(PRGEXT)

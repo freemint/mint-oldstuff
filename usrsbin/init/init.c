@@ -1,5 +1,5 @@
 /*
- * Init.c for MiNT version 1.3 (c) S.R.Usher 1991/92/93/94.
+ * Init.c for MiNT version 1.5 (c) S.R.Usher 1991/92/93/94.
  *
  * Changelog
  *
@@ -40,9 +40,20 @@
  *					Added code to set up console for
  *					single user mode.
  *
+ * 20/6/94	1.4	tesche		Check for ability to open the console
+ *					and check if terminal exists before
+ *					trying to run a getty.
+ *
+ * 3/8/94	1.5	S.R.Usher	Made sure we exit when told to
+ *					shutdown. Changed startup message
+ *					when compiled under MiNT.
+ *
+ * 27/8/94	1.6	S.R.Usher	Make sure all messages go to console
+ *					rather than stdout or stderr.
+ *
  */
 
-#define VERSION 1.3
+#define VERSION 1.6
 
 #include <stdio.h>
 #include <fcntl.h>
@@ -59,6 +70,8 @@
 #include <sys/dir.h>
 #include <sys/stat.h>
 #include <mintbind.h>
+
+#include "version.h"
 
 extern char *strchr();
 #endif
@@ -82,6 +95,9 @@ void handle_sigalrm();
 char *version = "\033pinit version %2.1f (c) S.R.Usher 1991/2/3/4 (Built %s %s)\033q\033e\033v\n";
 #else
 char *version = "\033pBSD-like init Release %2.1f (%s %s).\033q\033e\033v\nCopyright (c) 1991-1994, S.R.Usher.\n\n";
+#endif
+#ifdef MINT
+char *mintosversion = MINTOSVERS;
 #endif
 
 static FILE *console;
@@ -113,9 +129,16 @@ char *envp[];
 	sigblock(sigmask(SIGUSR1));
 	sigblock(sigmask(SIGUSR2));
 
-	console = fopen("/dev/console", "w+");
+	if (!(console = fopen("/dev/console", "w+"))) {
+		/* looks like we're in problems... :-( */
+		exit(-1);
+	}
 
+#ifdef MINT
+	fprintf(console, "%s\033e\033v\n", mintosversion);
+#else
 	fprintf(console, version, VERSION, __TIME__, __DATE__ );
+#endif
 
 	flags = parse_opts(argc, argv);
 
@@ -134,7 +157,7 @@ reboot:
 			execl("/bin/sh", "/bin/sh", "/etc/rc.boot", 0L);
 #ifdef DEBUG
 	else
-		printf("Can't access /etc/rc.boot\n");
+		fprintf(console, "Can't access /etc/rc.boot\n");
 #endif
 		
 	if (SINGLE_USER & flags)
@@ -165,7 +188,7 @@ reboot:
 			execl("/bin/sh", "/bin/sh", "/etc/rc", 0L);
 #ifdef DEBUG
 	else
-		printf("Can't access /etc/rc\n");
+		fprintf(console, "Can't access /etc/rc\n");
 #endif
 
 	get_tty_setup();
@@ -273,7 +296,7 @@ get_tty_setup()
 	for (i = 0; ((entry = getttyent()) != NULL) && (i < MAXENTS); i++, num_of_ents++)
 	{
 #ifdef DEBUG
-		printf("init: get_tty_setup: getttyent returned entry for %s.\n", entry->ty_name);
+		fprintf(console, "init: get_tty_setup: getttyent returned entry for %s.\n", entry->ty_name);
 #endif
 		entries[i] = 1;
 		strcpy(myttys[i].mtt_name, entry->ty_name);
@@ -281,7 +304,7 @@ get_tty_setup()
 		myttys[i].mtt_flag = entry->ty_status;
 	}
 #ifdef DEBUG
-	printf("num_of_ents = %d\n", num_of_ents);
+	fprintf(console, "num_of_ents = %d\n", num_of_ents);
 #endif
 	endttyent();
 }
@@ -298,12 +321,12 @@ void reread_ttys()
 	for (i = 0; (((entry = getttyent()) != NULL) && (i < MAXENTS)); i++, num_of_ents++)
 	{
 #ifdef DEBUG
-		printf("init: reread_ttys: getttyent returned entry for %s.\n", entry->ty_name);
+		fprintf(console, "init: reread_ttys: getttyent returned entry for %s.\n", entry->ty_name);
 #endif
 		if ((myttys[i].mtt_flag & TTY_ON) && !(entry->ty_status & TTY_ON))
 		{
 #ifdef DEBUG
-			printf("init: reread_ttys: killing %s (pid %d)\n", myttys[i].mtt_name, myttys[i].mtt_pid);
+			fprintf(console, "init: reread_ttys: killing %s (pid %d)\n", myttys[i].mtt_name, myttys[i].mtt_pid);
 #endif
 			killpg(myttys[i].mtt_pid, SIGKILL);
 			myttys[i].mtt_pid = 0;
@@ -313,7 +336,7 @@ void reread_ttys()
 		{
 			strcpy(myttys[i].mtt_name, entry->ty_name);
 #ifdef DEBUG
-			printf("init: reread_ttys: Starting new tty, %s... flag = %d (%d).\n", myttys[i].mtt_name, (entry->ty_status & TTY_ON), i);
+			fprintf(console, "init: reread_ttys: Starting new tty, %s... flag = %d (%d).\n", myttys[i].mtt_name, (entry->ty_status & TTY_ON), i);
 #endif
 			myttys[i].mtt_pid = start_getty_entry(entry, myttys[i].mtt_name);
 		}
@@ -348,7 +371,7 @@ run_ttys()
 						write_utmp(myttys[i].mtt_name, "\0", "\0", time(0L));
 						write_wtmp(myttys[i].mtt_name, "\0", "\0", time(0L));
 #ifdef DEBUG
-						printf("init: run_ttys: Starting tty %s.\n", myttys[i].mtt_name);
+						fprintf(console, "init: run_ttys: Starting tty %s.\n", myttys[i].mtt_name);
 #endif
 						myttys[i].mtt_pid = start_getty(myttys[i].mtt_name);
 					}
@@ -397,8 +420,8 @@ void do_shutdown()
 
 	do_killprocs();
 
-	printf("Syncing file systems...");
-	fflush(stdout);
+	fprintf(console, "Syncing file systems...");
+	fflush(console);
 
 #ifdef SYNC_FILESYS
 	sync();
@@ -408,7 +431,8 @@ void do_shutdown()
 	sleep(1);
 #endif
 
-	printf("done.\n");
+	fprintf(console, "done.\n");
+	exit(0);
 }
 
 do_killprocs()
@@ -498,7 +522,7 @@ do_killprocs()
 #endif
 
 	if (times_up > 0)
-		printf("Warning: Some process(es) wouldn't die.\n");
+		fprintf(console, "Warning: Some process(es) wouldn't die.\n");
 }
 
 static char ttyenv[256];
@@ -536,6 +560,11 @@ char *name;
 	else
 #endif
 		sprintf(ttyname, "/dev/%s", name);
+
+	/* tesche: first look if this terminal really exists */
+
+	if (access(ttyname, F_OK))
+		return 0;
 
 	chown(ttyname, 0, 0);
 	chmod(ttyname, 0666);
@@ -594,7 +623,7 @@ char *argv[];
 
 void generic(int signum)
 {
-	printf("init: Signal no. %d caught.\n", signum);
+	fprintf(console, "init: Signal no. %d caught.\n", signum);
 }
 
 void handle_sigalrm(int signum)

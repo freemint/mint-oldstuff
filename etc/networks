@@ -1,0 +1,9 @@
+#
+# /etc/networks -- networks database for Mint-Net (w) 1994, Kay Roemer.
+#
+# The form for each entry is:
+# <official network name>	<network number>	<aliases>
+#
+loopback	127
+des		163.1.22
+

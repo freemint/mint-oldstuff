@@ -1,12 +1,15 @@
+include ../../.builddir
+include ../../MakeVars
+
 CFLAGS = $(ADDITIONALCFLAGS)
 
 ac: ac.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o ac ac.c
-	../../bin/ttramify ac
+	$(FASTRAMPRG) ac
 
 clean:
-	/bin/rm ac
+	$(RM) ac
 
 install: ac
-	cp ac $(USRETCDIR)/ac$(TTPEXT)
-	chmod 0755 $(USRETCDIR)/ac$(TTPEXT)
+	$(CP) ac $(USRETCDIR)/ac$(TTPEXT)
+	$(CHMOD) 0755 $(USRETCDIR)/ac$(TTPEXT)

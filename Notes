@@ -1,0 +1,22 @@
+The following directories should be made on the U: drive using symbolic
+links designated in the mint.cnf file (an example mint.cnf is included in
+this package).
+
+/bin		Link to /usr/bin
+/etc		This holds loads of config stuff.
+/usr		Holds pretty well everything in sub-directories.
+/var/adm	This holds all the admin files for init, getty and login.
+/home		This is the directory under which user's home directories
+			are situated.
+
+Create an empty files called /var/adm/lastlog and /var/adm/wtmp (this is for
+login and last).
+
+PS.  I've included a mint.cnf file which renames /dev/modem1 to /dev/ttya
+etc.
+
+Note: Later patchlevels of MiNT 1.10 have support added for users to have
+subsiduary groups, the initgroups() routine in the library supplied DOES NOT
+support this and is a null routine. It is not known currently if this code
+will be included in MiNT 1.11. If it is, the next release will contain a
+proper initgroups() function.

@@ -1,0 +1,53 @@
+This is based upon the porting library (patchlevel 7) by Kay Koemer. I have
+integrated all the routines from the old MiNTOS library replacing those
+which were already in Portlib except for writev.c as my implementation was,
+in my own opinion at least, better. (It can be used on any stream, not only
+MiNTnet sockets.)
+
+The Portlib include files have been incorporated into the MiNTOS include
+directory.
+
+All files written by me have been placed into the public domain as of 10th
+September, 1994.
+
+Stephen Usher
+
+Here's Kay's original README text:-
+
+--8<-- Cut -- Here --8<-- Cut -- Here --8<-- Cut -- Here --8<--
+
+This is a small library including some functions that make
+your life so much easier when porting BSD software.
+
+If you want me to include other stuff, please mail me.
+
+
+Enjoy and please report any bugs you find.
+
+Kay Roemer,
+roemer@hera.rbi.informatik.uni-frankfurt.de
+
+
+
+Changes:
+--------
+
+PL 01:
+	Made openpty() work.
+	Included a bogus chroot() (which does only chdir).
+
+PL 02:
+	ioctl.h and sys/ioctl.h files including socket ioctl's. They
+	will go away when they are in the MintLib.
+
+PL 03:
+	New sys/uio.h file. Readv() and writev() emulation. They will
+	only work on socket descriptors!
+
+PL 04-05:
+	Lots of additional files and fixes. Baserel lib.
+
+PL 06-07:
+	Pty files are named ttyxy and have a link from /dev/ttyxy to
+	/pipe/ttyxy. (Fix by TeSche, tanx!)
+	__check_nbio_read() and __check_nbio_write functions.

@@ -1,13 +1,16 @@
+include ../../.builddir
+include ../../MakeVars
+
 CFLAGS = $(ADDITIONALCFLAGS)
-CPPFLAGS = -I../../include
+CPPFLAGS = -I$(BUILDDIR)/include
 
 halt: halt.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o halt halt.c ../syslog/libsyslog.a
-	../../bin/ttramify halt
+	$(FASTRAMPRG) halt
 
 clean:
-	/bin/rm halt
+	$(RM) halt
 
 install: halt
-	cp halt $(USRETCDIR)/halt$(TTPEXT)
-	chmod 0755 $(USRETCDIR)/halt$(TTPEXT)
+	$(CP) halt $(USRETCDIR)/halt$(TTPEXT)
+	$(CHMOD) 0755 $(USRETCDIR)/halt$(TTPEXT)

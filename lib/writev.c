@@ -1,3 +1,13 @@
+/*
+ * Writev.c - An almost bug-for-bug compatible version (according to the SunOS
+ *             4.1.1 write/writev(2V) manual page).
+ *
+ * 1.0	S.R.Usher	2nd August 1994. (02/08/94)
+ *
+ * Placed into the public domain 10th September, 1994.
+ *
+ */
+
 #include <stdio.h>
 #include <sys/errno.h>
 
@@ -17,6 +27,7 @@ int iovcnt;
 	register int i;
 	char *buffer, *ptr;
 	long length = 0;
+ 	int retval;
 	
 	if ((iovcnt <= 0) || (iovcnt > 16))
 	{
@@ -65,5 +76,9 @@ int iovcnt;
 	fprintf(stderr, "'\n");
 #endif
 
-	return write(fd, buffer, length);
+	retval = write(fd, buffer, length);
+
+	free(buffer);
+
+	return retval;
 }

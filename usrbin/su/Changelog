@@ -1,0 +1,7 @@
+22/5/94	-	S.R.Usher	su.c
+	In setenv changed buffer from being automatic to static so as to get
+around the problem of a small stack.
+
+9/7/94	-	S.R.Usher	su.c
+	Moved setenv of TERM outside "if (asthem)" It should now work every
+time.

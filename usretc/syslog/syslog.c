@@ -39,7 +39,7 @@ static char sccsid[] = "@(#)syslog.c	5.16 (Berkeley) 6/27/88";
  */
 
 #include <sys/types.h>
-#ifndef atarist
+#if !defined(MINT) || defined(MINTNET)
 #include <sys/socket.h>
 #ifdef SYSLOG_INET
 #  include <netinet/in.h>
@@ -57,7 +57,7 @@ static char sccsid[] = "@(#)syslog.c	5.16 (Berkeley) 6/27/88";
 #include <sys/file.h>
 #include <sys/signal.h>
 #include <sys/syslog.h>
-#ifndef atarist
+#if !defined(MINT) || defined(MINTNET)
 #include <netdb.h>
 #endif
 #include <strings.h>
@@ -65,7 +65,7 @@ static char sccsid[] = "@(#)syslog.c	5.16 (Berkeley) 6/27/88";
 #include <fcntl.h>
 #endif
 
-#ifndef atarist
+#if !defined(MINT) || defined(MINTNET)
 #define	MAXLINE	1024			/* max message size */
 #else
 #define	MAXLINE	960			/* max message size */
@@ -76,7 +76,7 @@ static char sccsid[] = "@(#)syslog.c	5.16 (Berkeley) 6/27/88";
 
 #define IMPORTANT 	LOG_ERR
 
-#ifndef atarist
+#if !defined(MINT) || defined(MINTNET)
 static char	logname[] = "/dev/log";
 #else
 static char	logname[] = "/pipe/log";
@@ -169,7 +169,7 @@ syslog(pri, fmt, p0, p1, p2, p3, p4)
 		c = MAXLINE;
 
 	/* output the message to the local logger */
-#ifndef atarist
+#if !defined(MINT) || defined(MINTNET)
 	if (send(LogFile, outline, c, 0) >= 0)
 #else
 	if (write(LogFile, outline, c) >= 0)
@@ -267,7 +267,7 @@ openlog(ident, logstat, logfac)
 		    strlen(SyslogAddr.sun_path)) >= 0)
 		connected = 1;
 #endif
-#ifdef atarist
+#if defined(MINT) && !defined(MINTNET)
 	if (LogFile == -1) {
 		LogFile = open(logname, O_RDWR);
 	}

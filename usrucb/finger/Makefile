@@ -1,12 +1,15 @@
-CFLAGS = $(ADDITIONALCFLAGS)
+include ../../.builddir
+include ../../MakeVars
+
+CFLAGS = $(ADDITIONALCFLAGS) -DREMOTE
 
 finger: finger.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o finger finger.c
-	../../bin/ttramify finger
+	$(FASTRAMPRG) finger
 
 clean:
-	/bin/rm finger
+	$(RM) finger
 
 install: finger
-	cp finger $(USRUCBDIR)/finger$(TTPEXT)
-	chmod 0755 $(USRUCBDIR)/finger$(TTPEXT)
+	$(CP) finger $(USRUCBDIR)/finger$(TTPEXT)
+	$(CHMOD) 0755 $(USRUCBDIR)/finger$(TTPEXT)

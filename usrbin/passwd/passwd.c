@@ -1,5 +1,10 @@
 /*
- * Passwd.c for MiNT version 1.0 (c) S.R.Usher 1991-93.
+ * Passwd.c for MiNT version 1.2 (c) S.R.Usher 1991-94.
+ *
+ * Thanks for the patches entropy.
+ *
+ * Passwd now uses my getpass routine rather than doing it all itself.
+ *
  */
 
 #define TMP_FILE "/etc/pwtmp"
@@ -9,7 +14,7 @@
 #include <sys/file.h>
 #include <pwd.h>
 
-extern char *getenv();
+extern char *getenv(), *getpass();
 
 struct passwd *pswdent, dummy;
 struct sgttyb orig, noecho;
@@ -22,7 +27,7 @@ static char *default_host = "this machine";
 #define MAX_NAME_LENGTH 80
 #endif
 #ifndef MAX_PASSWORD_LENGTH
-#define MAX_PASSWORD_LENGTH 80
+#define MAX_PASSWORD_LENGTH 9
 #endif
 
 main(argc, argv)
@@ -44,13 +49,9 @@ char *argv[];
 #endif
 #endif
 
-	ioctl(fileno(stdin), TIOCGETP, &orig);
-	ioctl(fileno(stdin), TIOCGETP, &noecho);
-
-	noecho.sg_flags &= ~ECHO;
-
 	if (parse_args(argc, argv, name, &preserve) == 0)
 	{
+		fprintf(stderr, "Error reading params.\n");
 		fail(name);
 	}
 
@@ -93,15 +94,7 @@ char *argv[];
 
 	if ((nopasswd == 0) && (starting_uid != 0))
 	{
-		ioctl(fileno(stdin), TIOCSETP, &noecho);
-
-		printf("Old password:");
-		fflush(stdout);
-		fgets(oldpassword, MAX_PASSWORD_LENGTH, stdin);
-		oldpassword[strlen(oldpassword) - 1] = '\0';
-		printf("\n");
-
-		ioctl(fileno(stdin), TIOCSETP, &orig);
+		strncpy(oldpassword, getpass("Old password:"), 8);
 
 		strncpy(key, pswdent->pw_passwd, 2);
 		key[2] = '\0';
@@ -109,7 +102,8 @@ char *argv[];
 		if ((check_passwd((char *)(crypt(oldpassword, key)), pswdent->pw_passwd) == 1) && (noentry == 0))
 			oktologin = 1;
 	}
-
+	else if (starting_uid == 0)
+		oktologin = 1;
 
 	endpwent();
 
@@ -121,28 +115,15 @@ char *argv[];
 
 	if ((oktologin == 1) && (noentry == 0))
 	{
-		ioctl(fileno(stdin), TIOCSETP, &noecho);
-
-retry:		printf("New password:");
-		fflush(stdout);
-		fgets(newpassword1, MAX_PASSWORD_LENGTH, stdin);
-		newpassword1[strlen(newpassword1) - 1] = '\0';
-		printf("\n");
+retry:		strncpy(newpassword1, getpass("New password:"), 8);
 
 		if (strlen(newpassword1) < 6)
 		{
-			ioctl(fileno(stdin), TIOCSETP, &orig);
 			printf("Please use a longer password.\n");
 			goto retry;
 		}
 
-		printf("Retype new password:");
-		fflush(stdout);
-		fgets(newpassword2, MAX_PASSWORD_LENGTH, stdin);
-		newpassword2[strlen(newpassword2) - 1] = '\0';
-		printf("\n");
-
-		ioctl(fileno(stdin), TIOCSETP, &orig);
+		strncpy(newpassword2, getpass("Retype new password:"), 8);
 
 		if (strcmp(newpassword1, newpassword2) == 0)
 		{
@@ -178,14 +159,17 @@ generate_key(key)
 char key[3];
 {
 	int value, i;
+	char *salts = 
+	  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./";
+	int saltslen;
 
+	saltslen = strlen(salts);
 	srand(time(0L));
 
 	for (i = 0; i < 2; i++)
 	{
 		value = rand();
-		while ((key[i] = (char)((value % 94) + 33)) == ':')
-			value = rand();
+		key[i] = (char)(salts[value % saltslen]);
 	}
 
 	key[2] = '\0';
@@ -250,10 +234,16 @@ struct passwd *entry;
 	char record[256], testnam[80];
 
 	if ((fp1 = fopen(PASSWD_FILE, "r")) == NULL)
+	{
+		fprintf(stderr, "opening file: ");
+		perror(PASSWD_FILE);
 		fail(name);
+	}
 
 	if ((fp2 = fopen(TMP_FILE, "w")) == NULL)
 	{
+		fprintf(stderr, "opening file: ");
+		perror(TMP_FILE);
 		fclose(fp1);
 		fail(name);
 	}
@@ -261,11 +251,24 @@ struct passwd *entry;
 	while(fgets(record, 1024, fp1) != NULL)
 	{
 		sscanf(record, "%s:", testnam);
+#ifdef DEBUG
+		printf("record = '%s', testnam = '%s', name = '%s'\n", record, testnam, name);
+#endif
 
 		if (strncmp(testnam, name, strlen(name)) == 0)
+		{
+#ifdef DEBUG
+			printf("bink.\n");
+#endif
 			create_entry(fp2, entry);
+		}
 		else
+		{
+#ifdef DEBUG
+		printf("bonk.\n");
+#endif
 			fwrite(record, strlen(record), 1, fp2);
+		}
 	}
 
 	fclose(fp1);
@@ -273,19 +276,19 @@ struct passwd *entry;
 
 	if (unlink(PASSWD_FILE))
 	{
-#ifdef DEBUG
+		fprintf(stderr, "unlinking file: ");
 		perror(PASSWD_FILE);
-#endif
 		fail(name);
 	}
 	
 	if (rename(TMP_FILE, PASSWD_FILE))
 	{
-#ifdef DEBUG
+		fprintf(stderr, "renaming file: ");
 		perror(TMP_FILE);
-#endif
 		fail(name);
 	}
+
+	chmod(PASSWD_FILE, 0644);
 }
 
 create_entry(file, entry)

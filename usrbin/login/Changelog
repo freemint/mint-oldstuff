@@ -1,0 +1,11 @@
+22/5/94	-	S.R.Usher	login.c
+	In setenv changed buffer from being automatic to static so as to get
+around the problem of a small stack.
+
+24/5/94	-	S.R.Usher	login.c
+	Added "rootlogin = 0;" after test for (pwd && !rval) so as to fix
+security bug which allows people to login with pid 0 if they first try to
+login as root then successfully login as another user.
+
+20/6/94	-	Tesche		login.c
+	Change mode of tty to 0620 before chowning it.

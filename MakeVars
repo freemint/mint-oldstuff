@@ -1,0 +1,58 @@
+# This is the name of you MiNTOS configuration:-
+
+CONFIGNAME=GENERIC
+
+# This is where mint.prg sits, init.prg should be in the same place unless
+#   you have directed mint to look elsewhere using a mint.cnf file.
+
+MINTDIR=/c/mint
+
+# This is where all your executables are held.
+
+USRSBINDIR=/usr/sbin
+USRBINDIR=/usr/bin
+USRUCBDIR=/usr/ucb
+USRETCDIR=/usr/etc
+USRLIBDIR=/usr/lib
+
+#USRSBINDIR=/j/mintos-1.4.1/usr/sbin
+#USRBINDIR=/j/mintos-1.4.1/usr/bin
+#USRUCBDIR=/j/mintos-1.4.1/usr/ucb
+#USRETCDIR=/j/mintos-1.4.1/usr/etc
+#USRLIBDIR=/j/mintos-1.4.1/usr/lib
+
+# This is the directory which will be come /etc using a symbolic link set up
+# in your mint.cnf. For OS's other than MiNT leave it as /etc.
+
+ETCDIR=/etc
+
+# This is the extention given to executables which will be called from the
+# command line.
+
+TTPEXT=
+
+# This is the extention given to init, MiNT expects it to be .prg.
+
+PRGEXT=
+
+SHELL=$(BUILDDIR)/bin/sh
+ECHO=$(BUILDDIR)/bin/echo
+DATE=$(BUILDDIR)/bin/date
+RM=@$(BUILDDIR)/bin/rm
+CP=$(BUILDDIR)/bin/cp
+MV=$(BUILDDIR)/bin/mv
+CHMOD=$(BUILDDIR)/bin/chmod
+CHGRP=$(BUILDDIR)/bin/chgrp
+
+#FASTRAMPRG=@$(BUILDDIR)/bin/ttramify
+FASTRAMPRG=@$(ECHO)
+
+ADDITIONALCFLAGS=-O6
+
+#CC=cgcc
+#AR=car
+
+CC=cc
+AR=ar
+
+DEFAULTSHELL=/bin/sh
