@@ -11,23 +11,23 @@ DVLIGHT = -DV_LIGHT
 #LFLAGS = -g -mshort
 CFLAGS = -mshort -mpcrel -O2 -Wall -fomit-frame-pointer $(DVLIGHT)
 LFLAGS = -mshort
-LIBS = -liio16
+LIBS = -liio
 
 # MiNT 1.11 version
 M111 = -DWRITEB111
 
 # default font search path for ttyvfont
-DEFFONTPATH = -DDEFFONTPATH=\"/usr/share/lib/ttyvfonts:.\"
+DEFFONTPATH = -DDEFFONTPATH=\"/usr/share/misc/ttyvfonts:.\"
 
 # ctrl-alt-num-( execl args
-TGETTY = -DTGETTYUTMP '-DTGETTY="/bin/runtt", "runtt", "-t", tty, "/bin/nice", "-20", "/etc/getty", "vty"'
+TGETTY = -DTGETTYUTMP '-DTGETTY="/bin/runtt", "runtt", "-t", tty, "/bin/nice", "-20", "/usr/etc/getty"'
 #TGETTY = -DTGETTYUTMP '-DTGETTY="/bin/runtt", "runtt", "-t", tty, "/bin/nice", "-20", "/etc/mgetty", "-rb", "-p", prompt, tty'
 
 # files...
 SRC = Makefile README execgem.c runtt.c select0.c 1.12-filesys.h-diffs \
 	 filesys.h vcon.h vtdev.h daemon.c paint.c screen.c vtdev.c ttyvfont.c
 # default executables
-DEFAULTX = execgem execmtos runtt select0.TOS ttyvfont vconsd
+DEFAULTX = execgem execmtos runtt select0.TOS ttyvfont vconsd save_res.tos
 # other executables (see README)
 MOREX = vcons1d vconx vcon
 
@@ -49,7 +49,7 @@ execgem: execgem.c
 	$(CC) $(CFLAGS) $< -o execgem $(LIBS)
 
 execmtos: execgem.c
-	$(CC) $(CFLAGS) -DINITPRG=\"gem.sys\" $< -o execmtos $(LIBS)
+	$(CC) $(CFLAGS) -DINITPRG=\"/usr/multitos/gem.sys\" $< -o execmtos $(LIBS)
 
 runtt: runtt.c
 	$(CC) $(CFLAGS) $< -o runtt $(LIBS)
@@ -62,19 +62,22 @@ ttyvfont: ttyvfont.c
 
 vconsd: daemon.o vtdevxd.o paintx.o screen.o
 	$(CC) -G $(LFLAGS) daemon.o vtdevxd.o paintx.o screen.o -ovconsd
-	toglclr -super $@
+	toglclr --super $@
+
+save_res.tos: save_res.c falconres.h
+	$(CC) save_res.c -osave_res.tos
 
 vcons1d: daemon.o vtdevx1.o screen1.o
 	$(CC) -G $(LFLAGS) daemon.o vtdevx1.o screen1.o -ovcons1d
-	toglclr -super $@
+	toglclr --super $@
 
 vconx: daemon.o vtdevx.o paintx.o
 	$(CC) -G $(LFLAGS) daemon.o vtdevx.o paintx.o -ovconx
-	toglclr -super $@
+	toglclr --super $@
 
 vcon: daemon.o vtdev.o paint.o
 	$(CC) -G $(LFLAGS) daemon.o vtdev.o paint.o -ovcon
-	toglclr -super $@
+	toglclr --super $@
 
 vcon.sym: daemon.o vtdev.o
 	$(CC) -B/usr/lib/sym- $(LFLAGS) daemon.o vtdev.o -ovcon.sym
@@ -91,7 +94,7 @@ vtdev.o: vtdev.c
 vtdevx.o: vtdev.c
 	$(CC) $(CFLAGS) -DVT00XCON $(M111) -c $< -o vtdevx.o
 
-screen.o: screen.c
+screen.o: screen.c falconres.h
 	$(CC) $(CFLAGS) -DVMODE -c $< -o screen.o
 
 vtdevxd.o: vtdev.c

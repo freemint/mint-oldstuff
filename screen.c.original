@@ -21,13 +21,10 @@ compile with -DVTONEPLANE to use no colours on ttyv1..9 (faster)
 */
 
 #include <stdio.h>
-#include <unistd.h>
 #include <mintbind.h>
 #include <falcon.h>
 #include "vcon.h"
 #include "vtdev.h"
-/* for Falcon030 */
-#include "falconres.h"
 
 #ifdef FORCE1PLANE
 #define VTONEPLANE
@@ -63,10 +60,23 @@ static long f030col_white= 0xffffffff, f030col_black=0;
 #define hscroll (*(volatile char *)	0xffff8265)
 #define tt_col ((short *)		0xffff8400)
 
+/* for F030 */
+#define f030_col ((long *)		0xffff9800)
+#define f030_xreg ((short*) 		0xffff8282)
+#define f030_yreg ((short*)		0xffff82a2)
+#define f030_creg ((short*)		0xffff82c0)
+#define f030_sreg ((short*)		0xffff8260)
+#define f030_mreg ((short*)		0xffff820a)
+
 #define tcdr (*(volatile char *)	0xfffffa23)
-	
-/* for Falcon030 */
-VIDEL_DATA	videl_data;
+
+/* for F030 */
+int nxreg[6]={0xc6,0x8d,0x15,0x273,0x50,0x96};
+int nyreg[6]={0x419,0x3ff,0x3f,0x3f,0x3ff,0x415};
+int nsreg[4]={0,0,0,0x400};
+int ncreg[2]={0x186,0x08};
+int nmreg[4]={0,0,0,0x28};
+
 
 #ifdef __GNUC__
 /* macro to turn interrupts off, result is the original sr. */
@@ -131,63 +141,6 @@ VIDEL_DATA	videl_data;
 	retvalue;				\
 })
 #endif
-
-/* for Falcon030 */
-void load_videl_data(void)
-{
-	int fd;
-	VIDEL_DATA tmp_data;
-	VIDEL_DATA videl_data_640x480 = {	VIDEL_DATA_IDENT, 80, 30,
-										{0xc6,0x8d,0x15,0x273,0x50,0x96},
-										{0x419,0x3ff,0x3f,0x3f,0x3ff,0x415},
-										{0,0,0,0x400},
-										{0x186,0x08},
-										{0,0,0,0x28}
-									};
-
-	/* let's fall back to standard 640x480 if the loading fails */
-	videl_data = videl_data_640x480;
-
-	fd = open(VIDEL_DATA_FILENAME, O_RDONLY);
-	if (fd < 0) {
-#ifdef VIDEL_DATA_DEBUG
-		printf("\r\nError %d : File "VIDEL_DATA_FILENAME" can't be opened\r\n", fd);
-#endif
-		return;
-	}
-
-	if (lseek(fd, 0L, SEEK_END) != sizeof(tmp_data)) {
-#ifdef VIDEL_DATA_DEBUG
-		printf("\r\nFile "VIDEL_DATA_FILENAME" has unexpected size\r\n");
-#endif
-		return;
-	}
-	lseek(fd, 0L, SEEK_SET);
-	read(fd, &tmp_data, sizeof(tmp_data));
-	close(fd);
-
-	if (strncmp(tmp_data.ident, VIDEL_DATA_IDENT, sizeof(tmp_data.ident))) {
-#ifdef VIDEL_DATA_DEBUG
-		printf("\r\nIncorrect version of "VIDEL_DATA_FILENAME"\r\n");
-#endif
-		return;
-	}
-
-	/* data file passed all security checks successfully */
-	videl_data = tmp_data;
-
-	printf("\r\nVirtual consoles use %d x %d resolution\r\n", videl_data.x_res, videl_data.y_res);
-}
-
-/* the final trick for getting rid of the unfamous VIDEL bug with shifted screen */
-INLINE void static VIDEL_resync(void)
-{
-	short old_w = *(short *)0xffff8266L;
-	Vsync();
-	*(short *)0xffff8266L = 0;
-	Vsync();
-	*(short *)0xffff8266L = old_w;
-}
 
 /*
  * waiteoscreen(): wait for `end of screen', needed to safely write
@@ -266,8 +219,7 @@ SCREEN *getvtmode (v00)
 			rez_vt = 1;
 		} else
 			/* st-hi */
-	st_hi:
-		rez_vt = 2;
+	st_hi:		rez_vt = 2;
 		maxy = 24;
 	st_30:
 		/* set up SCREEN struct for rez_vt (only entries we need) */
@@ -275,9 +227,9 @@ SCREEN *getvtmode (v00)
 		/* (this is really some struct fonthdr *[] but what the.. :) */
 		cfonts = (char ***) lineA0fonts();
 
-		v->maxx = videl_data.x_res-1;
+		v->maxx = 79;
 		v->maxy = maxy;
-		v->linelen = (videl_data.x_res*16);
+		v->linelen = 1280;
 		v->period = v00->period;
 		v->form_width = 0x100;
 		if (rez_vt == 1) {
@@ -296,7 +248,7 @@ SCREEN *getvtmode (v00)
 			v->cheight = 16;
 			v->fgcol = 1;
 			v->planes = 1;
-			v->planesiz = videl_data.x_res;
+			v->planesiz = 80;
 			sysfont = 2;
 		}
 		v->fontdata = cfonts[sysfont][19];
@@ -316,19 +268,14 @@ SCREEN *getvtmode (v00)
 		/* vga screen, use st-hi */
 		goto st_hi;
 	case VDO_FALCON:
-		/* get the preset resolution from configuration file */
-		/* cannot open data file if called from here - so the call was
-		   moved to main() of daemon.c */
-		/* load_videl_data(); */
-
 		switch (Montype ()) {
 		/* WANTED:  video modes for the other screen types... */
 		case VGAcolor:
 			/* and could init f030col_white, f030col_black from
 			   whats on console now (if people prefer white on
 			   black etc.)  */
-			rez_vt = 2;	/* like ST-High on SM124 */
-			maxy = videl_data.y_res-1;
+			rez_vt = 2;
+			maxy = 29; /* VGA 640*480*2 */
 			goto st_30;
 		}
 		/*FALLTHRU*/
@@ -501,16 +448,16 @@ void showscreen (vt, v, vbase, save)
 		break;
 	case VDO_FALCON:
 		if (save)
-		{
+			{
 			int n;
 			s->vbase16 = readmovepw (&dbaseh);
 			s->vbaselow = dbaselow;
 			
 			for(n=0;n<6;n++)		/* Save F030 video stuff */
-			{
+				{
 				s->xreg[n]=f030_xreg[n];
 				s->yreg[n]=f030_yreg[n];
-			}
+				}
 			s->creg[0]=f030_creg[0];
 			s->creg[1]=f030_creg[1];
 			s->sreg[0]=0;	/* preliminary */
@@ -524,13 +471,11 @@ void showscreen (vt, v, vbase, save)
 			s->saved = 1;
 		}
 		if (vt)
-		{
-			if (save)
 			{
+			if (save)
+				{
 				int n;
 				sr = waiteoscreen ();
-				Vsync();
-
 				writemovepw (&dbaseh, ((unsigned long) vbase >> 8));
 				dbaselow = (char) (long) vbase;
 				linewidth = 0;
@@ -540,43 +485,40 @@ void showscreen (vt, v, vbase, save)
 				f030_col[1]=f030col_black;
 
 				for(n=0;n<6;n++)/* init F030 video stuff */
-				{
-					f030_xreg[n]=videl_data.nxreg[n];
-					f030_yreg[n]=videl_data.nyreg[n];
-				}
-				f030_creg[0]=videl_data.ncreg[0];
-				f030_creg[1]=videl_data.ncreg[1];
-			/*	f030_sreg[0]=videl_data.nsreg[0];*/	/* preliminary */
-				f030_sreg[3]=videl_data.nsreg[3];
-				f030_mreg[0]=videl_data.nmreg[0];
-				f030_mreg[3]=videl_data.nmreg[3];
-				VIDEL_resync();
+					{
+					f030_xreg[n]=nxreg[n];
+					f030_yreg[n]=nyreg[n];
+					}
+				f030_creg[0]=ncreg[0];
+				f030_creg[1]=ncreg[1];
+			/*	f030_sreg[0]=nsreg[0];*/	/* preliminary */
+				f030_sreg[3]=nsreg[3];
+				f030_mreg[0]=nmreg[0];
+				f030_mreg[3]=nmreg[3];
 			} else
-			{
+				{
 				sr=intsoff();
 				writemovepw (&dbaseh, ((unsigned long) vbase >> 8));
 				dbaselow = (char) (long) vbase;
 			}
-
 			intson(sr);
 		} else		/* switch to saved mode */
-		{
+			{
 			int n;
 			writemovepw (&dbaseh, s->vbase16);
 			dbaselow = s->vbaselow;
 			linewidth = s->vlinewidth;
 			hscroll = s->vhscroll;
-			sr=waiteoscreen();
-			Vsync();
+			/*sr=waiteoscreen();*/
 
 			f030_col[0]=s->f030colours[0];
 			f030_col[1]=s->f030colours[1];
 
 			for(n=0;n<6;n++)		/* restore F030 video stuff */
-			{
+				{
 				f030_xreg[n]=s->xreg[n];
 				f030_yreg[n]=s->yreg[n];
-			}
+				}
 
 			f030_creg[0]=s->creg[0];
 			f030_creg[1]=s->creg[1];
@@ -584,10 +526,9 @@ void showscreen (vt, v, vbase, save)
 			f030_sreg[3]=s->sreg[3];
 			f030_mreg[0]=s->mreg[0];
 			f030_mreg[3]=s->mreg[3];
-			VIDEL_resync();
 
 			s->saved = 0;
-			intson (sr);
+			/*intson (sr);*/
 		}
 	}
 }

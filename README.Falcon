@@ -1,0 +1,35 @@
+    Hi Falcon users,
+
+I didn't understand all the time why the great virtual consoles
+were limited to dumb 30 lines with only 80 chars.
+
+My Falcon runs in 896x640 with 40 character lines per screen, each 112
+characters long. Furthermore the VGA refresh rate is 71 Hz in my case,
+which is much more pleasant for eyes than standard 60 Hz.
+I use BlowUP's screen enhancer with 50 MHz oscillator as the external
+VIDEL clock.
+
+If you would like to run vconsoles in your own resolution, simply 
+go to Desktop in 2 color mode. Setup your favourite resolution using
+any Falcon screen enhancer (FalconScreen, ScreenBlaster, BlowUP030,
+VidelInside or Videlity) and then start SAVE_RES.TOS program.
+It will save your resolution into file '/etc/resolution'. The vcond
+from this distribution will then read the file and use the data
+for setting the same resolution in vconsoles.
+
+Don't forget to switch into 2-colors mode before running
+the SAVE_RES.TOS, because virtual consoles are patched for mono
+mode only.
+
+The vconsoles-0.9 also include special software patch for unfamous
+VIDEL bug (shifted screen when changing resolution). Look for
+VIDEL_resync() code (this workaround was found out by a German programmer
+and I got it from MiNT (or Falcon040?) mailing list).
+
+Enjoy,
+
+Petr Stehlik (22.3.1997, 14.6.1997, 10.5.1998)
+
+http://cas3.zlin.vutbr.cz/~stehlik/
+
+stehlik@cas3.zlin.vutbr.cz, pstehlik@zln.cz, stehlik@cyberstrider.org

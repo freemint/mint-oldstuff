@@ -340,7 +340,9 @@ int t;
  * the physical console
  */
 
-main()
+void load_videl_data(void);
+
+int main()
 {
 	int i;
 	volatile char *pkbshift = getpkbshift();
@@ -369,6 +371,12 @@ main()
 	for (i = 3; i < 32; ++i) {
 		close (i);
 	}
+
+	/* this call belongs to getvtmode(), but I call it from here, because
+	   it does weird things when it's called from getvtmode - it can not
+	   open the data file, for example. I don't know why :-/
+	*/
+	load_videl_data();
 
 	/* stdin RAW, catch signals...  */
 	pgrp = getpid(/*0*/);

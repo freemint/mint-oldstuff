@@ -1006,6 +1006,12 @@ moveup:			v->cy = --cy;
 		v->cursaddr = V_LINE(v, i);
 		clrline(v, cy);
 		break;
+	case 'm':		/* EXTENSION: dim on */
+		v->flags |= FDIM;
+		break;
+	case 'n':		/* EXTENSION: dim off */
+		v->flags &= ~FDIM;
+		break;
 	case 'o':		/* clear from start of line to cursor */
 		clrfrom(v, 0, cy, cx, cy);
 		break;
@@ -1014,6 +1020,12 @@ moveup:			v->cy = --cy;
 		break;
 	case 'q':		/* reverse video off */
 		v->flags &= ~FINVERSE;
+		break;
+	case 'r':		/* EXTENSION: italic on */
+		v->flags |= FITALIC;
+		break;
+	case 's':		/* EXTENSION: italic off */
+		v->flags &= ~FITALIC;
 		break;
 	case 't':		/* EXTENSION: set cursor flash rate */
 		*V_STATE(v) = setcurs;
