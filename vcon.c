@@ -1,5 +1,5 @@
 /*
- * virtual terminals for MiNT, 1st try
+ * virtual terminals for MiNT, v0.2 (still alpha...)
  *
  * vt01..9 are fast hardware-scrolling text-terminals, vt00 is the
  * original console and can still be used for GEM. (i hope :)
@@ -40,16 +40,16 @@
 struct kerinfo *kernel;
 
 struct dev_descr devinfo[] = {
-	&vcon_device, 0, O_TTY, ttys+0, 0L, 0L, 0L, 0L,	/* vt00 (console) */
-	&vcon_device, 1, O_TTY, ttys+1, 0L, 0L, 0L, 0L,	/* vt01 */
-	&vcon_device, 2, O_TTY, ttys+2, 0L, 0L, 0L, 0L,	/* vt02 */
-	&vcon_device, 3, O_TTY, ttys+3, 0L, 0L, 0L, 0L,	/* vt03 */
-	&vcon_device, 4, O_TTY, ttys+4, 0L, 0L, 0L, 0L,	/* vt04 */
-	&vcon_device, 5, O_TTY, ttys+5, 0L, 0L, 0L, 0L,	/* vt05 */
-	&vcon_device, 6, O_TTY, ttys+6, 0L, 0L, 0L, 0L,	/* vt06 */
-	&vcon_device, 7, O_TTY, ttys+7, 0L, 0L, 0L, 0L,	/* vt07 */
-	&vcon_device, 8, O_TTY, ttys+8, 0L, 0L, 0L, 0L,	/* vt08 */
-	&vcon_device, 9, O_TTY, ttys+9, 0L, 0L, 0L, 0L	/* vt09 */
+	{&vcon_device, 0, O_TTY, ttys+0, {0L, 0L, 0L, 0L}},  /* vt00 (console) */
+	{&vcon_device, 1, O_TTY, ttys+1, {0L, 0L, 0L, 0L}},  /* vt01 */
+	{&vcon_device, 2, O_TTY, ttys+2, {0L, 0L, 0L, 0L}},  /* vt02 */
+	{&vcon_device, 3, O_TTY, ttys+3, {0L, 0L, 0L, 0L}},  /* vt03 */
+	{&vcon_device, 4, O_TTY, ttys+4, {0L, 0L, 0L, 0L}},  /* vt04 */
+	{&vcon_device, 5, O_TTY, ttys+5, {0L, 0L, 0L, 0L}},  /* vt05 */
+	{&vcon_device, 6, O_TTY, ttys+6, {0L, 0L, 0L, 0L}},  /* vt06 */
+	{&vcon_device, 7, O_TTY, ttys+7, {0L, 0L, 0L, 0L}},  /* vt07 */
+	{&vcon_device, 8, O_TTY, ttys+8, {0L, 0L, 0L, 0L}},  /* vt08 */
+	{&vcon_device, 9, O_TTY, ttys+9, {0L, 0L, 0L, 0L}}   /* vt09 */
 };
 
 #define MAX_VT ((sizeof devinfo)/sizeof (struct dev_descr))
@@ -62,22 +62,9 @@ short hardscroll = -1;
 struct tchars con_tc, tc0;
 struct ltchars con_ltc, ltc0;
 
-int pfd[MAX_VT], cfd, vcurrent, pgrp;
+int pfd[MAX_VT], cfd, vcurrent;
+long pgrp;
 short leaving;
-
-static int xcurrent;
-
-void xflash();
-
-long xsetcurrent()
-{
-	return setcurrent (xcurrent);
-}
-
-void xwakeselect()
-{
-	WAKESELECT(ttys[vcurrent].rsel);
-}
 
 void con_raw()
 {
@@ -93,9 +80,11 @@ void con_raw()
 
 void con_sane()
 {
-	if (cfd) {
+	int i;
+
+	if (cfd >= 0) {
 		/* try to uninstall gracefully... */
-		int i, opencnt = 0;
+		int opencnt = 0;
 		char *vt00name=ttyname(cfd), *oldcname=ttyname(0), *s;
 		long vpgrp;
 
@@ -117,7 +106,9 @@ void con_sane()
 					killpg(vpgrp, SIGHUP);
 			}
 		}
-		/* wait until all the devices are closed... */
+		/* we can't unlink devices before they are all closed...
+		   this can cause deadlocks but what can i do? :(
+		*/
 		while (opencnt) {
 			opencnt = 0;
 			/* sleep(1);  (save space...) */
@@ -126,22 +117,21 @@ void con_sane()
 				if (ttys[i].use_cnt > !i)
 					++opencnt;
 		}
-		xcurrent = 0;
-		Supexec (xsetcurrent);
+		Fcntl(cfd, (char *) 0, VCTLSETV);
 		Fclose (cfd);
-
-		/* ..and remove them */
-		for (i = 0; i < MAX_VT; ++i) {
-			char name[] = "u:\\dev\\vt00";
-
-			name[sizeof "u:\\dev\\vt0"-1] = i+'0';
-			Fdelete (name);
-		}
 #if 1
 		vpgrp = 0;
 		Fcntl(0, &vpgrp, TIOCSPGRP);
 #endif
 	}
+	/* unlink devices */
+	for (i = 0; i < MAX_VT; ++i) {
+		char name[] = "u:\\dev\\vt00";
+
+		name[sizeof "u:\\dev\\vt0"-1] = i+'0';
+		Fdelete (name);
+	}
+
 	con.sg_flags=conflags;	/* restore console  */
 	Fcntl(0, &con, TIOCSETN);
 	Fcntl(0, &con_tc, TIOCSETC);
@@ -158,19 +148,36 @@ int sig;
 	kill(getpid(), sig);
 }
 
-/* pass signal to process on the pty */
+/* pass signal to process on the terminal */
 void trap_int(sig)
 int sig;
 {
 	int vpgrp;
 
 	/* see who is on the tty and if its a different process group... */
-	if (ttys[vcurrent].use_cnt && (vpgrp = ttys[vcurrent].pgrp) != pgrp) {
+	if (ttys[vcurrent].use_cnt && ((vpgrp = ttys[vcurrent].pgrp)) &&
+	    vpgrp != pgrp) {
 		/* if yes, pass the signal */
 		signal(sig, SIG_IGN);
 		killpg(vpgrp, sig);
 		signal(sig, trap_int);
 	}
+}
+
+/* SIGTTIN/OU */
+void trap_tt(sig)
+int sig;
+{
+	long vpgrp = 0;
+
+	Fcntl(0, &vpgrp, TIOCGPGRP);
+	if (vpgrp && vpgrp != pgrp) {
+		/* huh!?  someone stole our console device... */
+		signal(sig, SIG_IGN);
+		killpg(vpgrp, sig);
+		signal(sig, trap_tt);
+	}
+	Fcntl(0, &pgrp, TIOCSPGRP);
 }
 
 static	OSHEADER *syshdr;
@@ -227,7 +234,7 @@ long *cbuf, *bufp;
 			Fwrite (fd, bytes, cbuf);
 			/* if someone select()ed this terminal wake 'em up */
 			if (ttys[vcurrent].rsel)
-				Supexec (xwakeselect);
+				Fcntl(cfd, (char *) vcurrent, VCTLWSEL);
 		}
 	}
 }
@@ -240,7 +247,6 @@ long *cbuf, *bufp;
 main()
 {
 	int i;
-	long pgrp;
 	char *s;
 	volatile char *pkbshift = getpkbshift();
 	long cbuf[0x80], *bufp;
@@ -262,6 +268,9 @@ main()
 	signal(SIGTERM, trap);
 	signal(SIGINT, trap_int);
 	signal(SIGQUIT, trap_int);
+	signal(SIGTSTP, trap_int);
+	signal(SIGTTIN, trap_tt);
+	signal(SIGTTOU, trap_tt);
 	con_raw();
 
 	for (i = 0; i < MAX_VT; ++i) {
@@ -316,6 +325,9 @@ main()
 	signal(SIGTERM, trap);
 	signal(SIGINT, trap_int);
 	signal(SIGQUIT, trap_int);
+	signal(SIGTSTP, trap_int);
+	signal(SIGTTIN, trap_tt);
+	signal(SIGTTOU, trap_tt);
 
 	/* now the daemon part
 	   poll keyboard, switch between terminals, start/stop output,
@@ -327,6 +339,7 @@ main()
 		int fd = pfd[vcurrent], scan;
 		char cshift;
 		unsigned long l;
+		static fshort = 0;
 
 		/* empty buffer if full */
 		if (bufp == cbuf+sizeof cbuf) {
@@ -339,31 +352,36 @@ main()
 			csend (vcurrent, fd, cbuf, bufp);
 			bufp = cbuf;
 			for (;;) {
-				int ctimeout = 0;
+				SCREEN *v = v0x+vcurrent-1;
+				int ctimeout = 500;
 				long rfd = 1;
 
-				if (vcurrent) {
-					SCREEN *v = v0x+vcurrent-1;
-					ctimeout = 500;
-
-					if ((CURS_FLASH|CURS_ON) ==
-					    (v->flags & (CURS_FLASH|CURS_ON)))
-						ctimeout = v->period*20;
+				if (vcurrent && (CURS_FLASH|CURS_ON) ==
+				    (v->flags & (CURS_FLASH|CURS_ON))) {
+					ctimeout = 20*(unsigned char)v->period;
+					if (!ctimeout)
+						ctimeout = 20*0x100;
+					if (fshort) {
+						ctimeout /= 2;
+						ctimeout += ctimeout/4;
+					}
 				}
+				fshort = 0;
+
+				/* BUG: (MiNT 1.09)  select doesn't wake up for
+				   `repeated' keys...  not until timeout or you
+				   release the key.  */
 				if (Fselect (ctimeout, &rfd, (long *)0, (long *)0)) {
 					/* show cursor if flashing and off */
-					if (vcurrent) {
-						SCREEN *v = v0x+vcurrent-1;
-
-						if ((CURS_FLASH|CURS_ON) ==
-						    (v->flags & (CURS_FLASH|CURS_ON|CURS_FSTATE)))
-							Supexec (xflash);
+					if (vcurrent && (CURS_FLASH|CURS_ON) ==
+					    (v->flags & (CURS_FLASH|CURS_ON|CURS_FSTATE))) {
+						Fcntl(cfd, (char *) 0, VCTLFLASH);
 					}
 					/* then go read whats there */
 					break;
 				}
 				/* select timed out, flash cursor & try again */
-				Supexec (xflash);
+				Fcntl(cfd, (char *) 0, VCTLFLASH);
 			}
 			continue;
 		}
@@ -398,9 +416,10 @@ main()
 				if ((scan -= 0x44) < MAX_VT) {
 					csend (vcurrent, fd, cbuf, bufp);
 					bufp = cbuf;
-					xcurrent = scan;
-					if (Supexec (xsetcurrent))
+					if (Fcntl(cfd, (char *) scan, VCTLSETV))
 						Fputchar (0, 07l, 0);
+					else
+						fshort = 1;
 					continue;
 				}
 			break;
@@ -427,11 +446,13 @@ main()
 			}
 			if (sig) {
 				ttys[vcurrent].state &= ~TS_HOLD;
-				if (!(ttys[vcurrent].sg.sg_flags & T_NOFLSH)) {
+				if (!(ttys[vcurrent].sg.sg_flags & T_NOFLSH))
 					Fcntl (fd, (char *) 0, TIOCFLUSH);
-					bufp = cbuf;
-				}
-				killpg (ttys[vcurrent].pgrp, sig);
+				else
+					csend (vcurrent, fd, cbuf, bufp);
+				bufp = cbuf;
+				if (ttys[vcurrent].pgrp)
+					killpg (ttys[vcurrent].pgrp, sig);
 				continue;
 			}
 			else if (ttys[vcurrent].state & TS_HOLD) {

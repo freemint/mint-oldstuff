@@ -1,9 +1,14 @@
 /*
-virtual terminal devices, based on MiNTs fasttext.c, that is...
+virtual terminal devices, based on MiNTs fasttext.c
 
-Copyright 1991,1992 Eric R. Smith.
-Copyright 1992,1993 Atari Corporation.
-All rights reserved.
+Some parts of this code are:
+Copyright 1992,1993 Eric R. Smith and Atari Corporation.
+Used by permission.
+
+compile with -DVT00XCON to make vt00 (the `new' console) output thru
+xconout[2] (for GEM programs that don't know about ptys and hook up
+their terminal window there...), otherwise vt00 is always fast
+full-screen like the other terminals only it doesn't hardware scroll.
 */
 
 #include <stddef.h>
@@ -36,27 +41,39 @@ static void quote_putch P_((SCREEN *, int));
 
 static	char *chartab[256];
 
-static int fgmask[MAX_PLANES], bgmask[MAX_PLANES];
-
 static long scrnsize;
 
 short hardscroll;
-static char *hardbase, *oldbase;
+static char *hardbase;
 
 #define base (*((char **)0x44eL))
+#define _hz_200 (*((long *)0x4baL))
+#define VT_SCREEN(vt) (v0x+(vt)-1)
+
+#ifdef VT00XCON
+#define xconout	((long *) 0x57e)
+
+#define V_BASE(v) ((v)->v.t.vbase)
+#define V_LINE(v, lx4) ((v)->v.t.vbase + *(long *)((v)->v.t.rowlist+(lx4)))
+#define V_LINEAR_P(v) ((v)->v.t.on)
+#define V_ESCY1(v) (&(v)->v.t.vescy1)
+#define V_STATE(v) (&(v)->v.t.state)
+#define V_FGMASK(v) ((v)->v.t.fgmask)
+#define V_BGMASK(v) ((v)->v.t.bgmask)
+#else
+#define escy1 (*((short *)0x4acL))
+static int fgmask[MAX_PLANES], bgmask[MAX_PLANES];
+static Vfunc v00state;
+
 #define V_BASE(v) ((v) == v00 ? base : (v)->v.t.vbase)
 #define V_LINE(v, lx4) ((v) == v00 ? (base + *(long *)(rowoff+(lx4))) : \
 			((v)->v.t.vbase + *(long *)((v)->v.t.rowlist+(lx4))))
 #define V_LINEAR_P(v) ((v) == v00 || (v)->v.t.on)
-#define VT_SCREEN(vt) ((vt) ? v0x+(vt)-1 : v00)
-#define escy1 (*((short *)0x4acL))
-#define V_ESCY1(v) ((v) == v00 ? escy1 : (v)->v.t.vescy1)
+#define V_ESCY1(v) ((v) == v00 ? &escy1 : &(v)->v.t.vescy1)
+#define V_STATE(v) ((v) == v00 ? &v00state : &(v)->v.t.state)
 #define V_FGMASK(v) ((v) == v00 ? fgmask : (v)->v.t.fgmask)
 #define V_BGMASK(v) ((v) == v00 ? bgmask : (v)->v.t.bgmask)
-#define _hz_200 (*((long *)0x4baL))
-
-static Vfunc v00state;
-#define V_STATE(v) ((v) == v00 ? &v00state : &(v)->v.t.state)
+#endif
 
 static short hardline;
 static void (*vpaint) P_((SCREEN *, int, char *));
@@ -65,7 +82,7 @@ static short qfd[N_VT], q_fl[N_VT];
 
 void exchangeb P_((void *, void *, long));
 void init P_((void));
-int setcurrent P_((int));
+static int setcurrent P_((int));
 void hardware_scroll P_((SCREEN *));
 INLINE static char *PLACE P_((SCREEN *, int, int));
 INLINE static void gotoxy P_((SCREEN *, int, int));
@@ -83,7 +100,9 @@ static void escy1_putch P_((SCREEN *, int));
 #if 0
 INLINE static void put_ch P_((SCREEN *, int));
 #else
+#ifndef VT00XCON
 INLINE static void put_ch00 P_((SCREEN *, int));
+#endif
 INLINE static void put_ch0x P_((SCREEN *, int));
 #endif
 
@@ -111,9 +130,10 @@ flash(v)
 
 /* actually flash cursor (called from vcon.c) */
 
-void xflash()
+INLINE static void
+xflash()
 {
-	SCREEN *v = v0x+vcurrent-1;
+	SCREEN *v = VT_SCREEN(vcurrent);
 
 	/* vt00's cursor is handled by TOS... */
 	if (!vcurrent || v->hidecnt)
@@ -160,8 +180,13 @@ curs_on(v)
 		if (!(v->flags & CURS_FSTATE)) {
 			/* if you can't see the cursor there's no
 			   reason to flash it */
+#ifdef VT00XCON
+			if ((v->flags & CURS_FLASH) &&
+			    (!vcurrent || !v->v.t.on))
+#else
 			if ((v->flags & CURS_FLASH) &&
 			    v != v00 && (!vcurrent || !v->v.t.on))
+#endif
 				return;
 			v->flags |= CURS_FSTATE;
 			flash(v);
@@ -281,6 +306,7 @@ init()
 	else
 		vpaint = paint;
 
+#ifndef VT00XCON
 	if (v->hidecnt == 0) {
 	/*
 	 * make sure the cursor is set up correctly and turned on
@@ -304,6 +330,7 @@ init()
 	setbgcol(v, v->bgcol);
 	setfgcol(v, v->fgcol);
 	*V_STATE(v) = normal_putch;
+#endif
 }
 
 /* deinit, must be called after last close */
@@ -367,7 +394,7 @@ char *PLACE(v, x, y)
 	return place;
 }
 
-int
+INLINE static int
 setcurrent(vt)
 	int vt;
 {
@@ -413,7 +440,7 @@ setcurrent(vt)
 	vcurrent = vt;
 	if (vt && (v->flags & CURS_FLASH))
 		curs_on(v);
-	Setscreen(-1l, V_BASE(v), -1);
+	Setscreen(-1l, (vt ? v->v.t.vbase : base), -1);
 	return 0;
 }
 
@@ -1049,7 +1076,12 @@ delete_line(v, r)
 		return;
 	}
 	if (r == 0) {
-		if (v != v00 & hardscroll > 0) {
+#ifdef VT00XCON
+		if (hardscroll > 0)
+#else
+		if (v != v00 && hardscroll > 0)
+#endif
+		{
 			hardware_scroll(v);
 			clrline(v, v->maxy);
 			return;
@@ -1124,7 +1156,12 @@ insert_line(v, r)
 		clrline(v, r);
 		return;
 	}
-	if (!r && v != v00 & hardscroll > 0) {
+#ifdef VT00XCON
+	if (!r && hardscroll > 0)
+#else
+	if (!r && v != v00 && hardscroll > 0)
+#endif
+	{
 		hardware_scroll_down(v);
 		clrline(v, 0);
 		return;
@@ -1405,7 +1442,7 @@ escy1_putch(v, c)
 	   cm args (cm=\EY%+ %+ :) -> drop that unless the screen
 	   is bigger.	-nox
 	*/
-	gotoxy(v, (c-' ') & (v->maxx|0x7f), (V_ESCY1(v)-' ') & (v->maxy|0x7f));
+	gotoxy(v, (c-' ') & (v->maxx|0x7f), (*V_ESCY1(v)-' ') & (v->maxy|0x7f));
 	*V_STATE(v) = normal_putch;
 }
 
@@ -1417,7 +1454,7 @@ escy_putch(v, c)
 	SCREEN *v;
 	int c;
 {
-	V_ESCY1(v) = c;
+	*V_ESCY1(v) = c;
 	*V_STATE(v) = escy1_putch;
 }
 
@@ -1523,6 +1560,35 @@ col0:			v->cx = 0;
 	}
 }
 
+#ifdef VT00XCON
+#ifdef __GNUC__
+/* macro to call thru a xcon* vector.  we can tell gcc directly that it
+   clobbers d0-d7 and a0-a5, only the frame pointer in a6 we must take
+   care of ourselves.
+   correction: gcc 2.2.2 also wants the reg.s it passes args in unchanged */
+
+#define xcon_exec(add, ch) \
+({									\
+	register long retvalue __asm__("d0");				\
+	long  _add = (long) (add);					\
+	long  _ch  = (long) (ch);					\
+	    								\
+	__asm__ volatile						\
+	("\
+		movml   a5-a6/d7,sp@-;					\
+		movl    %2,sp@-;					\
+		jsr	%1@;						\
+		addql	#4,sp;						\
+		movml   sp@+,a5-a6/d7; "				\
+	: "=r"(retvalue)			/* outputs */		\
+	: "a"(_add), "d"(_ch)		        /* inputs  */		\
+	: "d1", "d2", "d3", "d4", "d5", "d6",				\
+	  "a0", "a1", "a2", "a3", "a4"		/* clobbered regs */	\
+	);								\
+	retvalue;							\
+})
+#endif
+#else
 INLINE static void
 put_ch00(v, c)
 	SCREEN *v;
@@ -1530,6 +1596,7 @@ put_ch00(v, c)
 {
 	(*v00state)(v, c & 0x00ff);
 }
+#endif
 
 INLINE static void
 put_ch0x(v, c)
@@ -1563,16 +1630,21 @@ screen_open(f)
 	char name[] = "u:\\pipe\\q$vt00";
 
 	if (!rowoff) {
+#ifdef VT00XCON
+		/* if vt00 should write thru xconout be sure its there :) */
+		if (!xconout[CONDEV])
+			return -EINTERNAL;
+#endif
 		init();
 	} else if (!ttys[0].use_cnt || leaving)
 		/* if we're init'ed already and vt00 is closed that means
 		   we're uninistalling... */
 		return -EACCESS;
 	if (!((struct tty *)f->devinfo)->use_cnt) {
-		SCREEN *v = VT_SCREEN(vt);
-
 		/* init and alloc screen memory if necessary */
 		if (vt) {
+			SCREEN *v = VT_SCREEN(vt);
+
 			if (!v->v.t.vbase) {
 				char *vbase = (char *)kmalloc(scrnsize);
 				if (!vbase)
@@ -1629,7 +1701,7 @@ screen_write(f, buf, bytes)
 	FILEPTR *f; const char *buf; long bytes;
 {
 	int vt = f->fc.aux;
-	SCREEN *v = VT_SCREEN(vt);
+	SCREEN *v;
 	long *r;
 	long ret = 0;
 	int c;
@@ -1650,10 +1722,36 @@ screen_write(f, buf, bytes)
 #else
 	tick = _hz_200;
 #endif
+	r = (long *)buf;
+#ifdef VT00XCON
+	if (vt) {
+		v = VT_SCREEN(vt);
+		v->hidecnt++;
+		v->flags |= CURS_UPD;		/* for TOS 1.0 */
+		curs_off(v);
+		while (bytes > 0) {
+			c = (int) *r++;
+			put_ch0x(v, c);
+			bytes -= 4; ret+= 4;
+		}
+		if (v->hidecnt > 0)
+			--v->hidecnt;
+		else
+			v->hidecnt = 0;
+		curs_on(v);
+		v->flags &= ~CURS_UPD;
+	} else {
+		while (bytes > 0) {
+			c = (int) *r++;
+			(void) xcon_exec (xconout[CONDEV], (unsigned char) c);
+			bytes -= 4; ret+= 4;
+		}
+	}
+#else
+	v = vt ? VT_SCREEN(vt) : v00;
 	v->hidecnt++;
 	v->flags |= CURS_UPD;		/* for TOS 1.0 */
 	curs_off(v);
-	r = (long *)buf;
 	if (vt) {
 		while (bytes > 0) {
 			c = (int) *r++;
@@ -1673,6 +1771,7 @@ screen_write(f, buf, bytes)
 		v->hidecnt = 0;
 	curs_on(v);
 	v->flags &= ~CURS_UPD;
+#endif
 #if 1
 	if (tick != _hz_200 && !(tick & 3))
 		yield();
@@ -1725,13 +1824,22 @@ screen_ioctl(f, mode, buf)
 		return FCNTL (qfd[vt], r, TIOCFLUSH);
 	}
 	else if (mode == TIOCGWINSZ) {
-		SCREEN *v = VT_SCREEN(vt);
+		SCREEN *v = vt ? VT_SCREEN(vt) : v00;
 		w = (struct winsize *)buf;
 		w->ws_row = v->maxy+1;
 		w->ws_col = v->maxx+1;
 	}
-	else if (mode >= TCURSOFF && mode <= TCURSGRATE) {
+#ifdef VT00XCON
+	else if (vt && mode >= TCURSOFF && mode <= TCURSGRATE)
+#else
+	else if (mode >= TCURSOFF && mode <= TCURSGRATE)
+#endif
+	{
+#ifdef VT00XCON
 		SCREEN *v = VT_SCREEN(vt);
+#else
+		SCREEN *v = vt ? VT_SCREEN(vt) : v00;
+#endif
 		switch(mode) {
 		case TCURSOFF:
 			curs_off(v);
@@ -1758,6 +1866,32 @@ screen_ioctl(f, mode, buf)
 			break;
 		case TCURSGRATE:
 			return v->period;
+		}
+#ifdef VT00XCON
+	} else if ((mode >= TCURSOFF && mode <= TCURSSTEADY)) {
+		return Cursconf(mode - TCURSOFF, 0);
+	} else if ((mode >= TCURSSRATE && mode <= TCURSGRATE)) {
+		long r;
+
+		r = Cursconf(mode - TCURSOFF, *((short *)buf));
+		if (r >= 0) {
+			*(short *)buf = r;
+			r = 0;
+		}
+		return r;
+#endif
+	} else if (mode >= VCTLSETV && mode <= VCTLWSEL && PGETPID() == pgrp) {
+		switch(mode) {
+		case VCTLSETV:
+			return setcurrent ((long) buf);
+		case VCTLFLASH:
+			xflash ();
+			return 0;
+		case VCTLWSEL:
+			if (ttys[(long) buf].rsel) {
+				WAKESELECT(ttys[(long) buf].rsel);
+				ttys[(long) buf].rsel = 0;
+			}
 		}
 	} else
 		return -EINVAL;

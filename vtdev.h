@@ -92,6 +92,6 @@ extern DEVDRV vcon_device;
 extern struct tty ttys[];
 extern struct dev_descr devinfo[];
 extern int vcurrent;
+extern long pgrp;
 extern short hardscroll, leaving;
 extern SCREEN *v00, v0x[], *current;
-int setcurrent();
