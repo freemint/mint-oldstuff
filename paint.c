@@ -159,16 +159,24 @@ flash(v)
 
 #ifndef FORCE1PLANE
 /*
- * boldbits(d): boldface character bitmap, used in paint.
+ * effectbits(d): transform character bitmap, used in paint.
  */
 
 INLINE static
-unsigned char boldbits(v, d)
+unsigned char effectbits(v, d, j)
 	SCREEN *v;
 	unsigned char d;
-{
+	ITYPE j;
+{	
+	ITYPE l;
+	if (v->flags & FITALIC) {
+		l=j;
+		d >>= l/((v->cheight)/3);
+	}
 	if (v->flags & FBOLD)
-		d |= d >> 1;
+		d |= d >> 1; /* bold */
+	if (v->flags & FDIM)
+		d &= ((j % 2) ? 0x55 : 0xaa); /* dim */
 	return d;
 }
 
@@ -205,10 +213,11 @@ paint(v, c, place)
 		}
 		return;
 	}
+
 	data = v->fontdata + c;
 	vform_width = v->form_width;
 
-	if (*V_BG00(v) && *V_FGFF(v) && !(v->flags & FBOLD)) {
+	if (*V_BG00(v) && *V_FGFF(v) && !(v->flags & FBOLD) && !(v->flags & FITALIC) && !(v->flags &FDIM)) {
 		for (j = v->cheight-1; j > 0; --j) {
 			d = *data ^ doinverse;
 			for (planecount = 0, q = place;
@@ -229,7 +238,7 @@ paint(v, c, place)
 		int *fg = V_FGMASK(v), *bg = V_BGMASK(v);
 
 		for (j = v->cheight-1; j > 0; --j) {
-			d = boldbits(v, *data) ^ doinverse;
+			d = effectbits(v, *data, j) ^ doinverse;
 			for (planecount = 0, q = place;
 					planecount < vplanes; planecount++) {
 				*q = ((d & (char) *fg++) | (~d & (char) *bg++));
@@ -240,7 +249,7 @@ paint(v, c, place)
 			fg -= vplanes;
 			bg -= vplanes;
 		}
-		d = ((v->flags & FUNDERLINE) ? -1 : boldbits(v, *data))
+		d = ((v->flags & FUNDERLINE) ? -1 : effectbits(v, *data, (v->cheight-1)))
 			^ doinverse;
 		for (planecount = 0, q = place;
 				planecount < vplanes; planecount++) {

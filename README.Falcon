@@ -1,3 +1,78 @@
+    Hello.
+
+    Petr's routines must have worked very well, but didn't know about RGB
+monitors, and as I didn't have a VGA monitor until very recently, they 
+weren't much help to me.
+
+    So I decided to rewrite the Videl routines so they'd work with my
+Falcon. I didn't bank on rewriting them completely... but I have. Big
+thanks to evl/dhs, who released heavily tested Videl routines with
+contributions from chris/aura, scandion/mugwumps, and sage/escape, on
+which I based mine. (The original routines wouldn't work if ST-compatible
+resolutions were involved - the Videl is an arcane chip at best...)
+
+    I also enhanced the detection within screen.c - now, colour terminals
+are possible with extended resolutions. (And, I patched paint.c - now all
+five text effects are supported, even with the generic paint routines.)
+
+    So, what we have here is a version of vconsd (and derivatives) which
+allows all Falcons to have large colour virtual terminals. (Except those
+connected to a monochrome - Atari SM124 or 125-type - monitor, which
+supports neither extended resolutions or colour <g>.)
+
+    Caveats:
+
+ <> The format of the /etc/resolution file has changed. You'll need to
+    make a new one if you used 0.9a, with the new save_res.tos program.
+    (Please don't mix the versions! <g>)
+
+ <> ST-low res is falsely detected as having 4 colours. (Surely no-one
+    would use a 40-column text terminal, though? <g>)
+
+ <> The default resolutions (when no /etc/resolution is found) for a 
+    Falcon are all monochrome. Yes, there is (VT52, as usual; anyone
+    willing to add VT100 codes as well?) colour support, but you'll 
+    need to save a colour resolution first.
+
+ <> It's tested with my Falcon, with an SC1435 RGB monitor (which is now
+    tethered to my PlayStation <g>), a couple of televisions, an SM124
+    mono monitor, and a 14 inch SVGA monitor of uncertain pedigree.
+
+ <> Use this at your own risk! Due to the nature of the code, it could
+    cause damage to an attached monitor if unsuitable signals are sent
+    to it. I haven't experienced damage myself, but I have made my own
+    monitor whine a couple of times while developing this, and still
+    tend to keep one finger on the reset button when testing a new
+    version... you've been warned, it's beta, okay? <g>
+
+ <> Default colours are white on black; I prefer that. Yes, you can
+    change it back if you like by editing screen.c to change the palette
+    and recompiling.
+
+ <> vconsd can now use 2-, 4-, and 16-colour resolutions. 256-colour
+    planar resolutions will work after a fashion, but are strangely 
+    pointless as only 16 colours can be used. <g> High-colour (16-bit)
+    resolutions *won't* work. Don't even try.
+
+    Basically, keep a backup of your old version, and feel free to
+try - and patch! (any daring Hades or Milan owners want to try their
+hand at hardware support for the graphic cards?) - this little kludge-
+bucket. ;)
+
+Future ideas: 
+
+ <> Possibly allow connection to different monitors with different 
+    filenames for each montior? /etc/resolution.rgb, /etc/resolution.vga,
+    /etc/resolution.mono, /etc/resolution.tv (delete where appropriate)
+    to be checked and used if found, otherwise try /etc/resolution?
+    (As I may well swap from VGA to RGB and back again fairly often,
+    I might add this myself <grin>)
+
+ -- Steven Moore.  -  smooreg@essex.ac.uk  -  http://sentroid.tsx.org/
+
+
+... The original README.Falcon file for virtual terminals 0.9a follows...
+
     Hi Falcon users,
 
 I didn't understand all the time why the great virtual consoles
@@ -23,6 +98,8 @@ You must then copy this file manually to the '/etc/resolution' file.
 Don't forget to switch into 2-colors mode before running
 the SAVE_RES.TOS, because virtual consoles are patched for mono
 mode only.
+
+(Steven Moore's note: This is no longer true; the patch is complete.)
 
 The vconsoles-0.9 also include special software patch for unfamous
 VIDEL bug (shifted screen when changing resolution). Look for

@@ -6,7 +6,9 @@
 
 VIDEL_DATA videl_data;
 
-#define ALT_FILENAME	"etc_res"
+/* grab_res.tos; instead of saving the current resolution, this one
+   prints the registers on standard output. Ideal for inclusion in
+   the default fields in screen.c. -smoore */
 
 /* Videl get/put routines.
 **
@@ -47,42 +49,28 @@ void readvidel(void) { VIDEO_getvideo(&videl_data); }
 int main()
 {
 	FILE *f;
-	int alt_file = 0;
+	int n;
 
 	linea0();
 	videl_data.x_res = V_CEL_MX+1;
 	videl_data.y_res = V_CEL_MY+1;
 
-	/* Since v0.9b, it doesn't have to be a monochrome resolution anymore...
-	if (V_BYTES_LIN != videl_data.x_res) {
-		printf("Switch to mono resolution (2 colour graphics mode)\n");
-		getchar();
-		return 1;
-	}*/
-
-	printf("Detected resolution: %d x %d\n", videl_data.x_res, videl_data.y_res);
 	Supexec(readvidel);
-	strncpy(videl_data.ident, VIDEL_DATA_IDENT, sizeof(videl_data.ident));
+	/* strncpy(videl_data.ident, VIDEL_DATA_IDENT, sizeof(videl_data.ident)); */
 
-	f = fopen(VIDEL_DATA_FILENAME, "wb");
-	if (f == NULL) {
-		printf("Cannot write to "VIDEL_DATA_FILENAME"\n");
-		f = fopen(ALT_FILENAME, "wb");
-		if (f == NULL) {
-			printf("Writting to current dir failed as well. What's up?\n");
-			getchar();
-			return 2;
-		}
-		else {
-			printf("Writting to alternate file '"ALT_FILENAME"' in current dir.\nPlease copy that file to "VIDEL_DATA_FILENAME" at your earliest convenience\n");
-			alt_file = 1;
-		}
-	}
-	fwrite(&videl_data, sizeof(videl_data), 1, f);
-	fclose(f);
+	printf("VIDEL_DATA videl_data_yournamehere = { VIDEL_DATA_IDENT, %d, %d,\n", videl_data.x_res, videl_data.y_res);
 
-	printf("Resolution data written to '%s' correctly.\n", alt_file ? ALT_FILENAME : VIDEL_DATA_FILENAME);
-	getchar();
+	printf("  { ");
+	for (n=0; n<5; n++) printf("0x%x, ", videl_data.nxreg[n]);
+	printf("0x%x },\n", videl_data.nxreg[5]);
+
+	printf("  { ");
+	for (n=0; n<5; n++) printf("0x%x, ", videl_data.nyreg[n]);
+	printf("0x%x },\n", videl_data.nyreg[5]);
+	
+	printf("  0x%x, 0x%x, { 0x%x, 0x%x }, \n", videl_data.nvco, videl_data.nc_s, videl_data.noff[0], videl_data.noff[1]);
+
+	printf("  0x%x, 0x%x, %d, 0x%x, 0x%x };\n\n", videl_data.nsync, videl_data.np_o, videl_data.st_flag, videl_data.nsps, videl_data.nsts);
 
 	return 0;
 }

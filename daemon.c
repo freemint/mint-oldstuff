@@ -340,7 +340,9 @@ int t;
  * the physical console
  */
 
+#ifndef NO_VIDEO_SUPPORT
 void load_videl_data(void);
+#endif
 
 int main()
 {
@@ -349,7 +351,6 @@ int main()
 	long cbuf[0x80], *bufp;
 	extern int __mint;
 	int open();
-
 #if 0
 	/* sanity check */
 	if (!(s = ttyname (0)) || (!(s = strrchr (s, '/'))) ||
@@ -372,11 +373,15 @@ int main()
 		close (i);
 	}
 
+#ifndef NO_VIDEO_SUPPORT
 	/* this call belongs to getvtmode(), but I call it from here, because
 	   it does weird things when it's called from getvtmode - it can not
 	   open the data file, for example. I don't know why :-/
 	*/
+	/* smoore - because you're in supervisor mode then...? Maybe the libraries
+           get upset by this? */
 	load_videl_data();
+#endif
 
 	/* stdin RAW, catch signals...  */
 	pgrp = getpid(/*0*/);

@@ -24,8 +24,9 @@ TGETTY = -DTGETTYUTMP '-DTGETTY="/bin/runtt", "runtt", "-t", tty, "/bin/nice", "
 #TGETTY = -DTGETTYUTMP '-DTGETTY="/bin/runtt", "runtt", "-t", tty, "/bin/nice", "-20", "/etc/mgetty", "-rb", "-p", prompt, tty'
 
 # files...
-SRC = Makefile README execgem.c runtt.c select0.c 1.12-filesys.h-diffs \
-	 filesys.h vcon.h vtdev.h daemon.c paint.c screen.c vtdev.c ttyvfont.c
+SRC = Makefile README README.1ST README.Falcon execgem.c runtt.c select0.c \
+	 filesys.h vcon.h vtdev.h daemon.c paint.c screen.c vtdev.c ttyvfont.c \
+	 falconres.h save_res.c grab_res.c
 # default executables
 DEFAULTX = execgem execmtos runtt select0.TOS ttyvfont vconsd save_res.tos
 # other executables (see README)
@@ -40,10 +41,10 @@ everything: $(DEFAULTX) $(MOREX)
 clean:
 	rm -f *.o *.sym $(DEFAULTX) $(MOREX)
 
-ttyvdev.tar.gz: $(SRC) ttyvfonts
-	tar cfvz ttyvdev.tar.gz $(SRC) ttyvfonts
+ttyvdev-0.9b.tar.gz: $(SRC) ttyvfonts
+	tar cfvz ttyvdev-0.9b.tar.gz $(SRC) ttyvfonts
 
-tar: ttyvdev.tar.gz
+tar: ttyvdev-0.9b.tar.gz
 
 execgem: execgem.c
 	$(CC) $(CFLAGS) $< -o execgem $(LIBS)
@@ -67,16 +68,19 @@ vconsd: daemon.o vtdevxd.o paintx.o screen.o
 save_res.tos: save_res.c falconres.h
 	$(CC) save_res.c -osave_res.tos
 
+grab_res.tos: grab_res.c falconres.h
+	$(CC) grab_res.c -ograb_res.tos
+
 vcons1d: daemon.o vtdevx1.o screen1.o
 	$(CC) -G $(LFLAGS) daemon.o vtdevx1.o screen1.o -ovcons1d
 	toglclr --super $@
 
-vconx: daemon.o vtdevx.o paintx.o
-	$(CC) -G $(LFLAGS) daemon.o vtdevx.o paintx.o -ovconx
+vconx: daemonx.o vtdevx.o paintx.o
+	$(CC) -G $(LFLAGS) daemonx.o vtdevx.o paintx.o -ovconx
 	toglclr --super $@
 
-vcon: daemon.o vtdev.o paint.o
-	$(CC) -G $(LFLAGS) daemon.o vtdev.o paint.o -ovcon
+vcon: daemonx.o vtdev.o paint.o
+	$(CC) -G $(LFLAGS) daemonx.o vtdev.o paint.o -ovcon
 	toglclr --super $@
 
 vcon.sym: daemon.o vtdev.o
@@ -84,6 +88,9 @@ vcon.sym: daemon.o vtdev.o
 
 daemon.o: daemon.c
 	$(CC) $(CFLAGS) $(TGETTY) -c $< -o daemon.o
+
+daemonx.o: daemon.c
+	$(CC) $(CFLAGS) $(TGETTY) -DNO_VIDEO_SUPPORT -c $< -o daemonx.o
 
 paint.o: paint.c
 	$(CC) $(CFLAGS) -funroll-loops -c $< -o paint.o
