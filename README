@@ -1,0 +1,90 @@
+From: Juergen Lock <nox@jelal.north.de>
+
+here is something you've all been waiting for... virtual terminals
+for MiNT :-)  now you can...
+
+ use up to 10 shells/whatever without magnifying glasses or 19" screens
+ run GEM on the console, top on vt01 and gdb' a GEM program from vt02...
+ send MiNTs debug output to another terminal than the debugged program
+ when some stupid program hangs and MiNT is still alive just switch to
+another terminal and send the thing a signal. (ever heared of vp/ix?
+oops, wrong CPU...)
+ temporarily suspend GEM while you need your cycles for something more
+important than polling the mouse ;)  i.e. just send SIGSTOP and SIGCONT
+later. (now if MiNT only had swapping...)
+ show people that its not MiNT that is slow, only GEM :-)  also the
+screen writing code in vtdev.c is mostly based on MiNTs fasttext.c
+(including hardware scrolling for all terminals except the console)
+so i guess output is faster than any GEM window writing could ever get.
+
+ how to use:
+
+ this should run ok on any machine where MiNTs /dev/fasttext worked
+(worked because you won't need it anymore then) and where
+Setscreen (-1, base, -1) allows setting the displayed screen
+independent of the one GEM (or VDI actually) writes to.  if it doesn't
+work for you tell me, or better yet just fix it and send diffs. :-)
+
+ with init simply put something like this into your rc.local:
+
+--------cut------
+if [ -f /usr/etc/vcon ]; then
+	echo "starting virtual consoles"
+	vcon
+	mv /dev/console /dev/con00
+	mv /dev/vt00 /dev/console
+	rm /etc/ttytab
+	ln /etc/ttytab.vt /etc/ttytab
+else
+	rm /etc/ttytab
+	ln /etc/ttytab.con /etc/ttytab
+fi
+-------------
+
+ (the mv.s are for programs that open /dev/console so they get the
+new one... writing to the old one should be no problem, but reading is.)
+
+ ttytab.vt has entries for console and vt01..09 (of course not all of
+them need be `on' :-), ttytab.con only has the original console.  and
+remember GEM can only run on console...
+
+ without init put something like this in mint.cnf (and then set CON to
+the new console).  of course without init you'll have to do its job
+yourself, i.e. put gettys or shells etc. on the new terminals `by hand'.
+
+ you can also add this to termcap:
+
+stv52|MiNT virtual console:\
+    :ti=\Ev\Ee\Ez_:am:te=\Ev\Et@\Ee\Ez_:\
+    :al=\EL:bs:cd=\EJ:ce=\EK:cl=\EE:cm=\EY%+ %+ :co#80:\
+    :dl=\EM:do=\EB:ho=\EH:\
+    :li#25:se=\Eq:so=\Ep:up=\EA:nd=\EC:\
+    :rs=\Ez_\Eb@\EcA:\
+    :ue=\EzH:us=\EyH:md=\E(:me=\E)\Eq:\
+    :ms:pt:\
+    :sr=2*\EI:\
+    :sf=2*^J:\
+    :kl=#K:kr=#M:ku=#H:kd=#P:\
+    :kI=#R:kh=#G:kH=#O:kP=#I:kN=#Q:\
+    :k0=#D:k1=#;:k2=#<:k3=#=:\
+    :k4=#>:k5=#?:k6=#@:k7=#A:k8=#B:k9=#C:\
+    :s0=#]:s1=#T:s2=#U:s3=#V:\
+    :s4=#W:s5=#X:s6=#Y:s7=#Z:s8=#[:s9=#\\:\
+    :vi=\Ef:ve=\Et@\Ee:vs=\Et :\
+    :cQ=\Et@:cV=\Et :
+
+(and add a new console type to gettytab that sets tt i.e. TERM =stv52),
+then less etc know how to underline text wich i also have added.
+btw the k.. and s.. with # are scancodes for elvis, others might want
+escape sequences...
+
+ oh and to switch between terminals just hit alt-fkey... f10 is the
+console.  when it `bing's at you that means the terminal has no screen
+memory because no process has it open... with init you can turn it on in
+ttytab and send init SIGHUP.  and when it `bing's at you while you type
+that means the terminals `keyboard queue' is full... to empty it hit
+alt-undo.  (if its empty alt-undo gets passed thru, so programs can
+still use it.)
+
+ ok, happy testing...
+	Juergen
