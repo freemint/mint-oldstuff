@@ -12,11 +12,18 @@ LIBS = -liio16
 # MiNT 1.11 version
 M111 = -DWRITEB111
 
+# default font search path for ttyvfont
+DEFFONTPATH = -DDEFFONTPATH=\"/usr/share/lib/ttyvfonts:.\"
+
+# ctrl-alt-num-( execl args
+TGETTY = -DTGETTYUTMP '-DTGETTY="/bin/runtt", "runtt", "-t", tty, "/bin/nice", "-20", "/etc/getty", "vty"'
+#TGETTY = -DTGETTYUTMP '-DTGETTY="/bin/runtt", "runtt", "-t", tty, "/bin/nice", "-20", "/etc/mgetty", "-rb", "-p", prompt, tty'
+
 # files...
 SRC = Makefile README execgem.c runtt.c select0.c 1.12-filesys.h-diffs \
-	 filesys.h vcon.h vtdev.h daemon.c paint.c screen.c vtdev.c
+	 filesys.h vcon.h vtdev.h daemon.c paint.c screen.c vtdev.c ttyvfont.c
 # default executables
-DEFAULTX = execgem execmtos runtt select0.TOS vconsd
+DEFAULTX = execgem execmtos runtt select0.TOS ttyvfont vconsd
 # other executables (see README)
 MOREX = vcons1d vconx vcon
 
@@ -29,8 +36,8 @@ everything: $(DEFAULTX) $(MOREX)
 clean:
 	rm -f *.o *.sym $(DEFAULTX) $(MOREX)
 
-ttyvdev.tar.gz:
-	tar cfvz ttyvdev.tar.gz $(SRC)
+ttyvdev.tar.gz: $(SRC) ttyvfonts
+	tar cfvz ttyvdev.tar.gz $(SRC) ttyvfonts
 
 tar: ttyvdev.tar.gz
 
@@ -45,6 +52,9 @@ runtt: runtt.c
 
 select0.TOS: select0.c
 	$(CC) $(CFLAGS) $< -o select0.TOS
+
+ttyvfont: ttyvfont.c
+	$(CC) $(CFLAGS) $(DEFFONTPATH) $< -o ttyvfont $(LIBS)
 
 vconsd: daemon.o vtdevxd.o paintx.o screen.o
 	$(CC) -G $(LFLAGS) daemon.o vtdevxd.o paintx.o screen.o -ovconsd
@@ -64,6 +74,9 @@ vcon: daemon.o vtdev.o paint.o
 
 vcon.sym: daemon.o vtdev.o
 	$(CC) -B/usr/lib/sym- $(LFLAGS) daemon.o vtdev.o -ovcon.sym
+
+daemon.o: daemon.c
+	$(CC) $(CFLAGS) $(TGETTY) -c $< -o daemon.o
 
 paint.o: paint.c
 	$(CC) $(CFLAGS) -funroll-loops -c $< -o paint.o

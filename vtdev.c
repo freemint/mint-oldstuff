@@ -33,8 +33,9 @@ palette 1 for ttyv1..9.  and it can't do console writes -> implies VT00XCON.
 #define CONDEV	(2)
 
 #define VT_SCREEN(vt) (v0x+(vt)-1)
-#define TT_SCREEN(tty) (((struct ttyv *) \
-			((char *)(tty)-offsetof(struct ttyv, tt)))->v)
+#define TT_TTYV(tty) ((struct ttyv *) \
+			((char *)(tty)-offsetof(struct ttyv, tt)))
+#define TT_SCREEN(tty) (TT_TTYV(tty)->v)
 #define SCNSIZE(v) ( (((long)v->maxy + hardscroll + 2)) * v->linelen )
 
 SCREEN *v00, v0x[N_VT-1];
@@ -42,6 +43,9 @@ char *chartab[256*2];
 short hardscroll;
 long scrnsize;
 char *rowoff;
+char *sysfontdata;	/* saved ttyv[1..9] v->fontdata if using loaded font */
+long sfontbytes;	/* size of ... */
+char *sysfontdata0;	/* saved console v->fontdata if using loaded font */
 #ifndef FORCE1PLANE
 void (*vpaint) P_((SCREEN *, int, char *));
 #endif
@@ -202,66 +206,13 @@ init_screen(v, initv, vbase, rowlist, on)
 	clear(v);
 }
 
-INLINE static int
-init()
-{
+void
+setup_chartab(v)
 	SCREEN *v;
+{
 	int i, j;
 	char *data, *foo;
 	static char chardata[256*16*2];
-	register int linelen;
-
-	foo = lineA0();
-	v = getvtmode (ttys[0].v = v00 = (SCREEN *)(foo - 346));
-#ifdef FORCE1PLANE
-	if ((v->cheight != 16 && v->cheight != 8) ||
-		((v != v00 && v->v.t.usedplanes) ?
-			v->v.t.usedplanes : v->planes) != 1) {
-		ALERT("Colour and cheight != 8 or 16 not supported, recompile without -DFORCE1PLANE");
-		return -1;
-	}
-#endif
-	
-	/* Ehem... The screen might be bigger than 32767 bytes.
-	   Let's do some casting... 
-	   Erling
-	*/
-	linelen = v->linelen;
-	scrnsize = (v->maxy+1)*(long)linelen;
-	rowoff = (char *)kmalloc((long)((v->maxy+1) * sizeof(long) * (N_VT-1)));
-	if (rowoff == 0) {
-		ALERT("Insufficient memory for screen offset table!");
-		return -ENOMEM;
-	} else {
-		long off, *lptr = (long *)rowoff;
-		SCREEN *vp = v0x;
-
-		for (i=0, off=0; i<=v->maxy; i++) {
-			*lptr++ = off;
-			off += linelen;
-		}
-		for (i=1; i<N_VT-1; i++) {
-			ttys[i].v = vp++;
-			vp->v.t.rowlist = (char *)lptr;
-			lptr += v->maxy+1;
-		}
-		ttys[N_VT-1].v = vp;
-	}
-	if (hardscroll == -1) {
-	/* request for auto-setting */
-		hardscroll = v->maxy+1;
-	}
-	if (!hardbase && (v == v00 || !(hardbase = v->v.t.vbase))) {
-		hardbase = (char *)(((long)kcore(SCNSIZE(v)+256L)+255L)
-					   & 0xffffff00L);
-		if (hardbase == 0) {
-			ALERT("Insufficient memory for second screen buffer!");
-			kfree (rowoff);
-			return -ENOMEM;
-		}
-	}
-	init_screen(v0x, v, hardbase, rowoff, V_FREE);
-	hardline = 0;
 
 #ifndef FORCE1PLANE
 	if (v->cheight == 8 && V_USEDPLANES(v) == 2) {
@@ -315,6 +266,79 @@ init()
 	else
 		vpaint = paint;
 #endif
+}
+
+INLINE static int
+init()
+{
+	SCREEN *v;
+	int i;
+	char *foo;
+	register int linelen;
+	long sfontbytes0;
+
+	foo = lineA0();
+	v = getvtmode (ttys[0].v = v00 = (SCREEN *)(foo - 346));
+#ifdef FORCE1PLANE
+	if ((v->cheight != 16 && v->cheight != 8) ||
+		((v != v00 && v->v.t.usedplanes) ?
+			v->v.t.usedplanes : v->planes) != 1) {
+		ALERT("Colour and cheight != 8 or 16 not supported, recompile without -DFORCE1PLANE");
+		return -1;
+	}
+#endif
+	
+	/* Ehem... The screen might be bigger than 32767 bytes.
+	   Let's do some casting... 
+	   Erling
+	*/
+	linelen = v->linelen;
+	scrnsize = (v->maxy+1)*(long)linelen;
+	sfontbytes = V_NFONTBYTES(v);
+	sfontbytes0 = V_NFONTBYTES(v00) * 2;
+	sysfontdata0 = v00->fontdata;
+	rowoff = (char *)kmalloc((long)((v->maxy+1) * sizeof(long) * (N_VT-1)) + sfontbytes0);
+	if (rowoff == 0) {
+		ALERT("Insufficient memory for screen offset table!");
+		return -ENOMEM;
+	} else {
+		long off, *lptr = (long *)rowoff;
+		SCREEN *vp = v0x;
+
+		for (i=0, off=0; i<=v->maxy; i++) {
+			*lptr++ = off;
+			off += linelen;
+		}
+		for (i=1; i<N_VT-1; i++) {
+			ttys[i].v = vp++;
+			vp->v.t.rowlist = (char *)lptr;
+			lptr += v->maxy+1;
+		}
+		ttys[N_VT-1].v = vp;
+		ttys[0].loadfontdata = (char *)lptr;
+		ttys[0].loadfontbytes = sfontbytes0;
+	}
+	if (hardscroll == -1) {
+	/* request for auto-setting */
+		hardscroll = v->maxy+1;
+	}
+	if (!hardbase && (v == v00 || !(hardbase = v->v.t.vbase))) {
+		long scnsize = SCNSIZE(v);
+
+		hardbase = (char *)(((long)kcore(scnsize+256L+sfontbytes)+255L)
+					   & 0xffffff00L);
+		if (hardbase == 0) {
+			ALERT("Insufficient memory for second screen buffer!");
+			kfree (rowoff);
+			return -ENOMEM;
+		}
+		ttys[1].loadfontdata = hardbase + scnsize;
+		ttys[1].loadfontbytes = sfontbytes;
+	}
+	init_screen(v0x, v, hardbase, rowoff, V_FREE);
+	hardline = 0;
+	setup_chartab(v);
+	sysfontdata = v->fontdata;
 
 #ifndef VT00XCON
 	vpaint0x = vpaint;
@@ -399,13 +423,22 @@ setcurrent(vt)
 			exchangeb (vline, V_LINE(v, i), v->linelen);
 			vline += v->linelen;
 		}
-		/* and pointers... */
+		/* pointers... */
 		foo = oldv->v.t.vbase;
 		oldv->v.t.vbase = v->v.t.vbase;
 		v->v.t.vbase = foo;
 		foo = oldv->v.t.rowlist;
 		oldv->v.t.rowlist = v->v.t.rowlist;
 		v->v.t.rowlist = foo;
+		/* and fonts... */
+		exchangeb (ttys[v0xcurrent].loadfontdata,
+				ttys[vt].loadfontdata, sfontbytes);
+		foo = ttys[v0xcurrent].loadfontdata;
+		ttys[v0xcurrent].loadfontdata = ttys[vt].loadfontdata;
+		ttys[vt].loadfontdata = foo;
+		if (v->fontdata != sysfontdata)
+			v->fontdata = ttys[vt].loadfontdata;
+		setup_chartab(v);
 
 		/* free screen memory if told so */
 		if (oldv->v.t.on == V_FREE) {
@@ -415,6 +448,8 @@ setcurrent(vt)
 		} else {
 			oldv->v.t.on = 0;
 			oldv->cursaddr = PLACE(oldv, oldv->cx, oldv->cy);
+			if (oldv->fontdata != sysfontdata)
+				oldv->fontdata = ttys[v0xcurrent].loadfontdata;
 		}
 		v->v.t.on = V_USED;
 		v->cursaddr = PLACE(v, v->cx, v->cy);
@@ -1170,12 +1205,16 @@ screen_open(f)
 	if (!((struct tty *)f->devinfo)->use_cnt) {
 		/* init and alloc screen memory if necessary */
 		if (vt) {
-			SCREEN *v = TT_SCREEN((struct tty *)f->devinfo);
+			struct ttyv *tt = TT_TTYV((struct tty *)f->devinfo);
+			SCREEN *v = tt->v;
 
 			if (!v->v.t.vbase) {
-				char *vbase = (char *)kmalloc(scrnsize);
+				char *vbase = (char *)kmalloc(scrnsize+sfontbytes);
+
 				if (!vbase)
 					return -ENOMEM;
+				tt->loadfontdata = vbase + scrnsize;
+				tt->loadfontbytes = sfontbytes;
 				init_screen (v, (void *)0, vbase, v->v.t.rowlist, 0);
 			} else if (v->v.t.on == V_FREE)
 				v->v.t.on = V_USED;
@@ -1206,17 +1245,29 @@ screen_close(f, pid)
 		FCLOSE (qfd[vt]);
 
 		/* last close on ttyv0 means uninstall... */
-		if (!vt)
+		if (!vt) {
+			ttys[0].v->fontdata = sysfontdata0;
 			deinit();
 		/* otherwise it means free screen memory */
-		else {
-			SCREEN *v = TT_SCREEN((struct tty *)f->devinfo);
+		} else {
+			struct ttyv *tt = TT_TTYV((struct tty *)f->devinfo);
+			SCREEN *v = tt->v;
+			char *p = tt->readxlat;
+			int j;
 
+			/* reset font... */
+			v->fontdata = sysfontdata;
+			/* ..and read translation */
+			for (j = 0x80; j < 0x100; ++j) {
+				*p++ = j;
+			}
 			if (v->v.t.on)
 				v->v.t.on = V_FREE;
 			else {
 				kfree (v->v.t.vbase);
 				v->v.t.vbase = 0;
+				tt->loadfontbytes = 0;
+				tt->loadfontdata = 0;
 			}
 		}
 	}
@@ -1486,6 +1537,66 @@ screen_ioctl(f, mode, buf)
 				ttys[(long) buf].tt.rsel = 0;
 #endif
 			}
+		}
+/* font setting stuff...  */
+	} else if (mode >= TCGETFONTSIZE && mode <= TCSETFONTXLAT) {
+		struct ttyv *tt = TT_TTYV((struct tty *)f->devinfo);
+		SCREEN *v = tt->v;
+		long bytes;
+
+		if ((f->flags & O_RWMODE) == O_WRONLY)
+			return -EPERM;		/* want read permission */
+		switch(mode) {
+		case TCGETFONTSIZE:		/* (one) chars bitmap size */
+			*(short *)buf = v->form_width >> (8-3);
+			((short *)buf)[1] = v->cheight;
+			break;
+		/* case TCSETFONTSIZE: */	/* (not yet) */
+		case TCGETFONTCHRS:		/* char range in font */
+			*(short *)buf = 0;
+			((short *)buf)[1] = 0xff;
+			break;
+		/* case TCSETFONTCHRS: */	/* (not yet) */
+		case TCGETFONTBITS:		/* bitmaps (old GDOS format) */
+			if (!buf)
+				return -EINVAL;
+			/*FALLTHRU*/
+		case TCSETFONTBITS:
+			bytes = V_NFONTBYTES(v);
+
+			if (mode == TCGETFONTBITS) {
+				memmove (buf, v->fontdata, bytes);
+			} else if (!buf) {
+				/* default == sysfont */
+				v->fontdata = vt ? sysfontdata : sysfontdata0;
+			} else if (tt->loadfontbytes < bytes) {
+				return -ENOMEM;
+			} else {
+				memmove (tt->loadfontdata, buf, bytes);
+				v->fontdata = tt->loadfontdata;
+				setup_chartab(v);
+			}
+			break;
+		case TCGETFONTXLAT:		/* ST -> font char mapping */
+			if (!buf) {		/*  for chars 0x80..0xff */
+				return -EINVAL;
+			} else {
+				memmove (buf, tt->readxlat, 0x80);
+			}
+			break;
+		case TCSETFONTXLAT:
+			if (!buf) {
+				/* default == none */
+				char *p = tt->readxlat;
+				int j;
+
+				for (j = 0x80; j < 0x100; ++j) {
+					*p++ = j;
+				}
+			} else {
+				memmove (tt->readxlat, buf, 0x80);
+			}
+			break;
 		}
 	} else
 		return -EINVAL;

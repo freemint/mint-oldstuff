@@ -82,3 +82,15 @@ extern struct kerinfo *kernel;
 #define VCTLSETV	0x7fd0	/* show terminal (arg) */
 #define VCTLFLASH	0x7fd1	/* flash current term's cursor */
 #define VCTLWSEL	0x7fd2	/* wake select()ing readers on term (arg) */
+
+/* ioctls for font setting utilities...  */
+#ifndef TCGETFONTSIZE
+#define TCGETFONTSIZE	(('c'<< 8) | 128)	/* (one) chars bitmap size */
+#define TCSETFONTSIZE	(('c'<< 8) | 129)	/* (not yet) */
+#define TCGETFONTCHRS	(('c'<< 8) | 130)	/* char range in font */
+#define TCSETFONTCHRS	(('c'<< 8) | 131)	/* (not yet) */
+#define TCGETFONTBITS	(('c'<< 8) | 132)	/* bitmaps (old GDOS format) */
+#define TCSETFONTBITS	(('c'<< 8) | 133)
+#define TCGETFONTXLAT	(('c'<< 8) | 134)	/* ST -> font char mapping */
+#define TCSETFONTXLAT	(('c'<< 8) | 135)	/*  for chars 0x80..0xff */
+#endif

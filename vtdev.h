@@ -173,9 +173,14 @@ typedef struct screen {
 #define V_SCRNSIZE(x) ((x) == v00 ? ((x)->maxy+1)*(long)(x)->linelen : scrnsize)
 #endif
 
+#define V_NFONTBYTES(x) ((long) (x)->form_width * (x)->cheight)
+
 extern struct ttyv {
 	SCREEN	*v;
 	struct tty tt;
+	char	*loadfontdata;	/* (allocated) storage for loaded fonts */
+	long	loadfontbytes;	/* size of ... */
+	unsigned char readxlat[0x80];	/* keys > 0x7f translation */
 } ttys[];
 extern DEVDRV vcon_device;
 extern struct dev_descr devinfo[];
@@ -201,6 +206,7 @@ void showscreen P_((int vt, SCREEN *v, char *vbase, int save));
 #define showscreen(vt, v, vbase, save) Setscreen (-1l, vbase, -1l)
 #endif
 
+void setup_chartab P_((SCREEN *));
 #ifndef FORCE1PLANE
 void flash P_((SCREEN *));
 void paint P_((SCREEN *, int, char *)),

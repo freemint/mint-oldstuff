@@ -1,5 +1,5 @@
 /*
- * virtual terminals for MiNT, v0.6 (beta)
+ * virtual terminals for MiNT, v0.7 (beta)
  *
  * ttyv1..9 are fast hardware-scrolling text-terminals, ttyv0 is the
  * original console and may still be used for graphic display and GEM.
@@ -34,6 +34,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <wait.h>
+#include <utmp.h>
 #include "vcon.h"
 #include "vtdev.h"
 
@@ -237,8 +239,8 @@ long *cbuf, *bufp;
 	long bytes = (char *)bufp - (char *)cbuf;
 
 	if (bytes) {
-		/* pipe full? */
-		if (Foutstat (fd) < bytes)
+		/* closed/pipe full? */
+		if (!ttys[vcurrent].tt.use_cnt || Foutstat (fd) < bytes)
 			/* bing... */
 			Fputchar (0, 07l, 0);
 		else {
@@ -250,6 +252,88 @@ long *cbuf, *bufp;
 		}
 	}
 }
+
+#ifdef TGETTY
+/* spawn getty (once) on ttyv(t), to use compile with something like
+ *	'-DTGETTY="/bin/runtt", "runtt", "-t", tty, "/etc/getty", "vty"'
+ * (see Makefile)
+ * the child should return ASAP, with return code 0 if successful
+ */
+int dogetty(t)
+int t;
+{
+	char tty[] = "/dev/ttyv0";
+	char prompt[] = "ttyv0 login: ";
+	int status;
+
+	prompt[sizeof "ttyv"-1] = tty[sizeof "/dev/ttyv"-1] = t+'0';
+	switch (vfork()) {		/* ok since runtt will fork itself */
+	case -1:
+		status = -1;		/* fork failed */
+		break;
+	case 0:
+		/* child */
+		for (status = 0; status < 3; ++status)
+		/* we don't want it mess with our /dev/console... */
+			Fclose(status);
+		execl (TGETTY, (char *) 0);  /* has to open the tty itself */
+		/* exec failed */
+		_exit(1);
+		/*NOTREACHED*/
+	default:
+		/* parent */
+		if (wait(&status) < 0)
+			status = -1;
+	}
+	return status;
+}
+
+#ifdef TGETTYUTMP
+#define UTMP_FILE	"/etc/utmp"
+#define WTMP_FILE	"/var/adm/wtmp"
+
+static enum gettystate {TNONE, TFORKING, TOPEN} tgstate[MAX_VT];
+
+int zaputmp(t)
+int t;
+{
+	char tty[] = "ttyv0";
+	static struct utmp wentry;
+	struct utmp rentry;
+	int i, r, fd;
+	int open();
+
+	tty[sizeof "ttyv"-1] = t+'0';
+	strncpy(wentry.ut_line, tty, 8);
+	wentry.ut_time = time(0L);
+
+	bzero(&rentry, sizeof(struct utmp));
+
+	if ((fd = open(UTMP_FILE, O_RDWR)) == -1)
+		return 1;
+	for (i = 0; ((r = read(fd, &rentry, sizeof(rentry))) != -1); ++i) {
+		if (!r)
+			return 1;
+		if (!strncmp(tty, rentry.ut_line, 8))
+			break;
+	}
+	if (lseek(fd, (i * sizeof(rentry)), 0) == -1 ||
+	    write(fd, &wentry, sizeof(wentry)) != sizeof(wentry)) {
+		close(fd);
+		return 1;
+	}
+	close(fd);
+	if ((fd = open(WTMP_FILE, (O_RDWR | O_APPEND))) == -1)
+		return 1;
+	if (write(fd, &wentry, sizeof(wentry)) != sizeof(wentry)) {
+		close(fd);
+		return 1;
+	}
+	close(fd);
+	return 0;
+}
+#endif
+#endif
 
 /*
  * main:  initialization stuff, and a daemon that handles input from
@@ -317,8 +401,13 @@ main()
 		Fcntl (pfd[i], 0, F_SETFD);
 	}
 	for (i = 0; i < MAX_VT; ++i) {
-		char name[] = "u:\\dev\\ttyv0";
+		char name[] = "u:\\dev\\ttyv0", *p = ttys[i].readxlat;
+		int j;
 
+		/* init input translation == none */
+		for (j = 0x80; j < 0x100; ++j) {
+			*p++ = j;
+		}
 		name[sizeof "u:\\dev\\ttyv"-1] = i+'0';
 		if (vcon_device.writeb)
 #ifndef follow_links	/* filesys.h */
@@ -420,6 +509,25 @@ main()
 				}
 				/* select timed out, flash cursor & try again */
 				Fcntl(cfd, (char *) 0, VCTLFLASH);
+#ifdef TGETTYUTMP
+				for (i = 1; i < MAX_VT; ++i) {
+					switch (tgstate[i]) {
+					case TFORKING:
+						if (ttys[i].tt.use_cnt)
+/* getty is up... */
+							tgstate[i] = TOPEN;
+						break;
+					case TOPEN:
+						if (!ttys[i].tt.use_cnt) {
+/* we put the getty there, we have to clean up after it */
+							zaputmp(i);
+							tgstate[i] = TNONE;
+						}
+						break;
+					default:
+					}
+				}
+#endif
 			}
 			continue;
 		}
@@ -461,6 +569,33 @@ main()
 					continue;
 				}
 			break;
+#ifdef TGETTY
+		} else	if ((cshift & ~0x10) == 0xc)  switch (scan=(char) (l>>16)) {
+			int i;
+			case 0x63:	/* ctrl-alt-num( */
+				csend (vcurrent, fd, cbuf, bufp);
+				bufp = cbuf;
+				for (i = 1; i < MAX_VT; ++i) {
+					if (!ttys[i].tt.use_cnt) {
+/* find a free tty and put up a getty...
+ * if just now something else decides to use this ttyv you'll lose.
+ */
+#ifdef TGETTYUTMP
+						if (tgstate[i]) continue;
+						tgstate[i] = TFORKING;
+#endif
+						if (!dogetty(i) &&
+						    !Fcntl(cfd, (char *) (long) i, VCTLSETV)) {
+							fshort = 1;
+							goto ok;
+						}
+						break;
+					}
+				}
+				Fputchar (0, 07l, 0);
+ok:
+				continue;
+#endif
 		} else	if ((ttys[vcurrent].tt.state & TS_COOKED) ||
 			    (cshift & 0xc) == 0xc) {
 			char ch = (char) l;
@@ -514,6 +649,8 @@ main()
 				continue;
 			}
 		}
+		if ((unsigned char)l > 0x7f)
+			l = (l & ~0xff) | ttys[vcurrent].readxlat[l & 0x7f];
 		*bufp++ = l;
 	}
 }

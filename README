@@ -1,5 +1,5 @@
 From nox  Sun Jan 15 19:53:14 1995
-Subject: virtual console (v0.6)
+Subject: virtual console(s) (v0.7)
 From: Juergen Lock <nox@jelal.hb.north.de>
 
 here is something you've all been waiting for... virtual terminals
@@ -8,7 +8,8 @@ for MiNT :-)  now you can...
  use up to 10 shells/whatever without magnifying glasses or 19" screens
  run GEM on the console, top on ttyv1 and gdb' a GEM program from ttyv2...
  send MiNTs debug output to another terminal than the debugged program
- run cu at 19200 bps (or 38400 on modem2) and actually use the speed...
+ run cu at 19200 bps (or 38400 on modem2) and actually use the speed,
+goodbye crawling GEM terminal emulations...
  when some stupid program hangs and MiNT is still alive just switch to
 another terminal and send the thing a signal. (ever heared of vp/ix?
 oops, wrong CPU...)
@@ -20,6 +21,8 @@ screen writing code in vtdev.c + paint.c is mostly based on MiNTs
 fasttext device (including hardware scrolling for all terminals except
 console even on vanilla ST), so i guess output is faster than any GEM
 window writing could ever get.
+ and of course show people what gcc -O2 can do, the days of `if you
+want performance do everyhing in assembler' are over i would say...
 
  how to use:
 
@@ -61,8 +64,8 @@ terminal window there and then write to console.  although MiNT has ptys...
 
 before `make' make sure filesys.h points to either a recent kernels
 file.h (this is a bit of a hack and may no longer work with future MiNTs)
-or (if you don't have a newer one by then) patch MiNT 1.12 doc/appendix.d,
-see 1.12-filesys.h-diffs.
+or (if you don't have a newer one by then) use a patched MiNT 1.12
+doc/appendix.d, see 1.12-filesys.h-diffs.
 
 then with init simply put something like this into your rc.local:
 
@@ -151,7 +154,28 @@ or use runtt...  and when it `bing's at you while you type that means
 the terminals `keyboard queue' is full, to empty it hit alt-undo.  (if
 its empty alt-undo gets passed thru so programs can still use it.)
 
+ new features in 0.7:
+
+1. at special request of one user :) there is another way to `enable'
+free ttyvs now:  define a command (execl args) in Makfile to `runtt'
+something like a getty (TGETTY), then when you hit ctrl-alt-num(
+that is exec'd on the first free ttyv so that you can login there.
+note as init doesn't know about ttys used like this (for init they
+are still disabled) it still won't respawn anything when you log out
+there, this also means your utmp entry would still show you logged in
+(the place where programs like `finger' and `last' look), if you want
+the daemon update that as well define TGETTYUTMP also.  see Makefile...
+
+2. loadable fonts.  there are some new ioctls to load char bitmaps
+and keyboard translations for chars >= 0x80, and there is a small
+example program that uses these to load raw bitmap files or monospaced
+GDOS (bitmap) fonts of the `right' size.  run ttyvfont --h for a
+help screen... (and improve it if you like, send me the diffs.)
+
+3. and now for something completely different...
+
  coping with GEM
+(this should probably go in some general MiNT FAQ, at least parts of it)
 
 GEM still is not a nice citizen for a multitasking environment...  once
 started you can't shut it down, it does strange things to its tty that
@@ -163,10 +187,10 @@ in supervisor mode for great length of times, effectively stopping
 multitasking completely for seconds.
 
  to get around the last problem install nohog.acc from the minixfs
-distribution (also used for minixfs update daemon; btw everyone runnig
-MiNT should try out minixfs, its just so much better than this slow
-and stupid GEMDOS thing...)  to stop the SIGTT* signals (symptom is a
-`hanging' GEM) use execgem, it turns off job control (process group)
+distribution (also necessary for minixfs update daemon; btw everyone
+runnig MiNT should try out minixfs, its just so much better than this
+slow and stupid GEMDOS thing...)  to stop the SIGTT* signals (symptom
+is a `hanging' GEM) use execgem, it turns off job control (process group)
 checks on the console before it starts GEM, see execgem.c.  the only
 thing you can do about the wasted cycles is run GEM at lowest priority,
 i use this alias (ksh):
@@ -188,13 +212,13 @@ still GEM should really catch SIGHUP etc. and do a clean exit...
  and thats still not it.  said multitos beta no longer polls everything
 but instead it has a race condition that now makes short evnt_timer
 calls often `hang' for > 3 min, especially with MiNT >1.08...
-if this hits you the easiest cure is to get MH-MiNT 1.12, it has a
-kludge in select() that hacks around this GEM bug itself. (what your
-still waiting for a new multitos release from atari!? forget it!)
-and the built-in GEM in at least TOS 1.(0)4 sometimes apparently
-`forgets' to initialize pointers in (M)allocated memory i.e. often
-crashes while loading .accs unless, hack #x+1, the kernel is told to
-zero everything returned by Malloc for it.  (F_ALLOCZERO bit used by
+if this hits you the easiest cure is to get the latest MH-MiNT 1.12,
+it has a kludge in select() that hacks around this GEM bug itself.
+(what your still waiting for a new multitos release from atari!?
+forget it!)  and the built-in GEM in at least TOS 1.(0)4 sometimes
+apparently `forgets' to initialize pointers in (M)allocated memory i.e.
+often crashes while loading .accs unless, hack #x+1, the kernel is told
+to zero everything returned by Malloc for it.  (F_ALLOCZERO bit used by
 execgem, also added in MH-MiNT 1.12.)
 
  and finally another one nothing to do with virtual consoles:  things

@@ -12,6 +12,8 @@ Used by permission.
 #include "vtdev.h"
 #endif
 
+static char *lastfontdata;
+
 /* flash(v): invert the character currently under the cursor */
 
 #ifdef FORCE1PLANE
@@ -272,6 +274,10 @@ paint8c(v, c, place)
 	}
 	if (v->flags & FBOLD)
 		c += 0x100;
+	if (v->fontdata != lastfontdata) {
+		setup_chartab(v);
+		lastfontdata = v->fontdata;
+	}
 	data = chartab[c];
 	dounderline = (v->flags & FUNDERLINE) ? 0xff : 0;
 
@@ -405,6 +411,10 @@ paint816m(v, c, place)
 	}
 	if (v->flags & FBOLD)
 		c += 0x100;
+	if (v->fontdata != lastfontdata) {
+		setup_chartab(v);
+		lastfontdata = v->fontdata;
+	}
 	data = chartab[c];
 	dounderline = (v->flags & FUNDERLINE) ? 0xff : 0;
 

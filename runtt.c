@@ -132,7 +132,7 @@ char **argv;
 	dup2(tty, 1);
 	dup2(tty, 2);
 
-	close(tty);
+	if (tty > 2) close(tty);
 
 	shell = getenv("SHELL");
 	if (!shell)
