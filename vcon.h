@@ -39,26 +39,6 @@
 
 extern struct kerinfo *kernel;
 
-#define FOPEN	(*kernel->dos_tab[0x3d])
-#define FCLOSE	(*kernel->dos_tab[0x3e])
-#define FREAD	(*kernel->dos_tab[0x3f])
-#define MXALLOC	(*kernel->dos_tab[0x44])
-#define FDATIME	(*kernel->dos_tab[0x44])
-#define FCNTL	(*kernel->dos_tab[0x104])
-#define FINSTAT	(*kernel->dos_tab[0x105])
-#define FGETCHAR (*kernel->dos_tab[0x107])
-#define PGETPID	(*kernel->dos_tab[0x10b])
-
-#define SPRINTF	(*kernel->sprintf)
-#define DEBUG	(*kernel->debug)
-#define ALERT	(*kernel->alert)
-#define TRACE	(*kernel->trace)
-#define FATAL	(*kernel->fatal)
-#define KMALLOC (*kernel->kmalloc)
-#define KFREE	(*kernel->kfree)
-#define SLEEP	(*kernel->sleep)
-#define WAKESELECT (*kernel->wakeselect)
-
 /* Fcntls for internal daemon/device communication, NOT for user processes...
    device checks caller's pid == daemon so they never should cause collisions.
 */

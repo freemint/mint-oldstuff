@@ -13,32 +13,58 @@ oops, wrong CPU...)
 important than polling the mouse ;)  i.e. just send SIGSTOP and SIGCONT
 later. (now if MiNT only had swapping...)
  show people that its not MiNT that is slow, only GEM :-)  also the
-screen writing code in vtdev.c is mostly based on MiNTs fasttext.c
-(including hardware scrolling for all terminals except the console)
-so i guess output is faster than any GEM window writing could ever get.
+screen writing code in vtdev.c + paint.c is mostly based on MiNTs
+fasttext device (including hardware scrolling for all terminals except
+console) so i guess output is faster than any GEM window writing could
+ever get.
 
  how to use:
 
  this should run ok on any machine where MiNTs /dev/fasttext worked
 (worked because you won't need it anymore then) and where
 Setscreen (-1, base, -1) allows setting the displayed screen
-independent of the one GEM (or VDI actually) writes to.  if it doesn't
-work for you tell me, or better yet just fix it and send diffs. :-)
+independent of the one GEM (or VDI actually) writes to.  on some
+configurations (currently vanilla ST(e), TT or falcon with VGA screen)
+where it knows how to save/set a complete video mode vt01..9 have their
+own fixed mode like e.g. st-hi, see screen.c for details.  otherwise all
+terminals have to use the same video mode, which can be slow and eat
+much memory when the console is running some big hi-res colour mode...
+and switching modes later makes vt01..9 unreadable too.
 
- with init simply put something like this into your rc.local:
+ there are 4 different versions (make targets) now,
+
+1. vconsd: currently (this beta) does not work on falcons with anything
+but VGA screens, otherwise `full version'.  if this doesn't work for you
+try vconx, or better yet fix it and send diffs. :-)
+
+2. vcons1d: stripped-down version that only knows about characters 8 or
+16 pixel high and one plane.  needs either a monochrome mode or screen.c
+must know how to save/set the palette.  the result is a bit more speed...
+
+3. vconx (default): like vconsd only with the video mode stuff disabled,
+try this one when the others don't work.
+
+4. vcon: another test version that also speeds up console writes (vt00).
+this is no longer default because there are GEM programs that expect
+console writes to always go thru the xcon* vectors, i.e. they hook a
+terminal window there and then write to console... instead of using ptys.
+
+ installation:
+
+with init simply put something like this into your rc.local:
 
 --------cut------
-if [ -f /usr/etc/vcon ]; then
+vt=con
+if [ -f /usr/etc/vcons1d ]; then
 	echo "starting virtual consoles"
-	vcon
-	mv /dev/console /dev/con00
-	mv /dev/vt00 /dev/console
-	rm /etc/ttytab
-	ln /etc/ttytab.vt /etc/ttytab
-else
-	rm /etc/ttytab
-	ln /etc/ttytab.con /etc/ttytab
+	if nice --20 vcons1d; then
+		mv /dev/console /dev/con00
+		mv /dev/vt00 /dev/console
+		vt=vt
+	fi
 fi
+rm /etc/ttytab
+ln /etc/ttytab.$vt /etc/ttytab
 -------------
 
  (the mv.s are for programs that open /dev/console so they get the
@@ -48,43 +74,95 @@ new one... writing to the old one should be no problem, but reading is.)
 them need be `on' :-), ttytab.con only has the original console.  and
 remember GEM can only run on console...
 
- without init put something like this in mint.cnf (and then set CON to
+ without init put something similar in mint.cnf (and then set CON to
 the new console).  of course without init you'll have to do its job
 yourself, i.e. put gettys or shells etc. on the new terminals `by hand'.
+see runtt.c.
 
  you can also add this to termcap:
 
 stv52|MiNT virtual console:\
-    :ti=\Ev\Ee\Ez_:am:te=\Ev\Et@\Ee\Ez_:\
+    :ti=\Ev\Ee\Ez_:am:te=\Ev\E. \Ee\Ez_:\
     :al=\EL:bs:cd=\EJ:ce=\EK:cl=\EE:cm=\EY%+ %+ :co#80:\
-    :dl=\EM:do=\EB:ho=\EH:\
+    :dl=\EM:do=\EB:ho=\EH:it=#8:le=^H:\
     :li#25:se=\Eq:so=\Ep:up=\EA:nd=\EC:\
     :rs=\Ez_\Eb@\EcA:\
-    :ue=\EzH:us=\EyH:md=\E(:me=\E)\Eq:\
+    :ue=\EzH:us=\EyH:md=\EyA:me=\Ez_:mr=\Ep:\
     :ms:pt:\
     :sr=2*\EI:\
     :sf=2*^J:\
-    :kl=#K:kr=#M:ku=#H:kd=#P:\
+    :kb=^H:kl=\ED:kr=\EC:ku=\EA:kd=\EB:\
+    :kI=\EI:kh=\EE:kP=\Ea:kN=\Eb:\
+    :k0=\EY:k1=\EP:k2=\EQ:k3=\ER:\
+    :k4=\ES:k5=\ET:k6=\EU:k7=\EV:k8=\EW:k9=\EX:\
+    :s0=\Ey:s1=\Ep:s2=\Eq:s3=\Er:\
+    :s4=\Es:s5=\Et:s6=\Eu:s7=\Ev:s8=\Ew:s9=\Ex:\
+    :vi=\Ef:ve=\E. \Ee:vs=\E.":\
+    :cQ=\E. :cV=\E.":cR=\E.!:
+stv52c|MiNT virtual console (k?=scancodes):\
+    :kb=^H:kl=#K:kr=#M:ku=#H:kd=#P:\
     :kI=#R:kh=#G:kH=#O:kP=#I:kN=#Q:\
     :k0=#D:k1=#;:k2=#<:k3=#=:\
     :k4=#>:k5=#?:k6=#@:k7=#A:k8=#B:k9=#C:\
     :s0=#]:s1=#T:s2=#U:s3=#V:\
     :s4=#W:s5=#X:s6=#Y:s7=#Z:s8=#[:s9=#\\:\
-    :vi=\Ef:ve=\Et@\Ee:vs=\Et :\
-    :cQ=\Et@:cV=\Et :
+    :tc=stv52:
 
 (and add a new console type to gettytab that sets tt i.e. TERM =stv52),
-then less etc know how to underline text wich i also have added.
-btw the k.. and s.. with # are scancodes for elvis, others might want
-escape sequences...
+then less, elvis etc know how to do underline/boldface text and use
+different cursors for (elvis) command/input/replace mode...  stv52c is
+the same for programs that use scancodes instead of escape sequences
+(like the TOS/MiNT elvis before 1.7, 1.7 understands both under MiNT).
+scancodes don't work over serial lines btw...
 
- oh and to switch between terminals just hit alt-fkey... f10 is the
-console.  when it `bing's at you that means the terminal has no screen
-memory because no process has it open... with init you can turn it on in
-ttytab and send init SIGHUP.  and when it `bing's at you while you type
-that means the terminals `keyboard queue' is full... to empty it hit
+ also depending on the video mode lines and columns can differ, if you
+have programs that don't know about TIOCGWINSZ/SIGWINCH adjust the
+numbers after li# and co#, for example on a falcon with VGA screen
+vt01..9 have 30 lines -> li#30.  there are also programs that don't
+look in termcap but check environment variables LINES and COLUMNS...
+and there are probably still old ones that only look in linea, they
+will always get the size of the console.
+
+ to switch between terminals just hit alt-fkey, f10 is the console.
+when it `bing's at you that means the terminal has no screen memory
+because no process has it open... with init you can turn it on in ttytab
+and send init SIGHUP.  and when it `bing's at you while you type that
+means the terminals `keyboard queue' is full... to empty it hit
 alt-undo.  (if its empty alt-undo gets passed thru, so programs can
 still use it.)
 
- ok, happy testing...
+ coping with GEM
+
+GEM still is not a nice citizen for a multitasking environment...  once
+started you can't shut it down, it does strange things to its tty that
+can raise job control signals (SIGTT*), and apparently only in the last
+multitos beta GEM no longer sucks up all CPU cycles it can get hold of,
+slowing down any parallel processing to a crawl...  and the versions
+before multitos have the additional `feature' that they like to run
+in supervisor mode for great length of times, effectively stopping
+multitasking completely for seconds.
+
+ to get around the last problem install nohog.acc from the minixfs
+distribution, (btw everyone using MiNT should try out minixfs, its just
+so much better than this slow and stupid GEMDOS thing...) to stop the
+SIGTT* signals (symptom is a `hanging' GEM) use execgem, it `turns off'
+job control on the console device before it starts GEM, see execgem.c.
+the only thing you can do about the wasted cycles is run GEM at lowest
+priority, i use this alias:
+
+	alias 'gem=cd /dev/c; mv nohog.acx nohog.acc ;LESS=-c exec nice -40 u:/home/nox/ksh/execgem'
+
+then when i run other processes at highest priority they get at least
+a bit more CPU than GEM. :)  the can't-leave-GEM problem still waits
+for a solution, the closest thing is stop it while you don't need it so
+it can't at least steal you cycles. (SIGSTOP, continue with SIGCONT.)
+if someone @ atari reads this, GEM should really catch SIGHUP etc. and
+do a clean exit...
+
+ another one nothing to do with virtual consoles:  things like funny
+screen layout etc. in GF*bugsic programs can sometimes be `fixed' by
+setting BIOSBUF=no in mint.cnf.  i already doctored a minixfs with an
+old SED (diskeditor) on console and fsck on vt02...
+
+ ok, happy testing
 	Juergen

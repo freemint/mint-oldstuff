@@ -9,6 +9,15 @@ compile with -DVT00XCON to make vt00 (the `new' console) output thru
 xconout[2] (for GEM programs that don't know about ptys and hook up
 their terminal window there...), otherwise vt00 is always fast
 full-screen like the other terminals only it doesn't hardware scroll.
+
+compile with -DVMODE to allow (hardware dependent) different video modes
+for vt01..9 and console, see screen.c for details.
+
+use -DFORCE1PLANE to compile only code for one plane (i.e. no colour)
+and characters 8 or 16 bytes high, this is fastest because it can leave
+out a few checks and inline the paint code.  of course that needs either
+a monochrome screen or screen.c (showscreen) has to know how to set/save
+palette 1 for vt01..9.  and it can't do console writes -> implies VT00XCON.
 */
 
 #include <stddef.h>
@@ -17,116 +26,59 @@ full-screen like the other terminals only it doesn't hardware scroll.
 #include "vcon.h"
 #include "vtdev.h"
 
-#ifdef __GNUC__
-#define INLINE inline
-#define ITYPE long	/* gcc's optimizer likes 32 bit integers */
-#else
-#define INLINE
-#define ITYPE int
+#ifdef FORCE1PLANE
+#include "paint.c"
 #endif
 
 #define CONDEV	(2)
 
-SCREEN *v00, v0x[N_VT-1];
+#define VT_SCREEN(vt) (v0x+(vt)-1)
+#define TT_SCREEN(tty) (((struct ttyv *) \
+			((char *)(tty)-offsetof(struct ttyv, tt)))->v)
+#define SCNSIZE(v) ( (((long)v->maxy + hardscroll + 2)) * v->linelen )
 
-static void paint P_((SCREEN *, int, char *)),
-	 paint8c P_((SCREEN *, int, char *)),
-	 paint816m P_((SCREEN *, int, char *));
+SCREEN *v00, v0x[N_VT-1];
+char *chartab[256*2];
+short hardscroll;
+long scrnsize;
+char *rowoff;
+#ifndef FORCE1PLANE
+void (*vpaint) P_((SCREEN *, int, char *));
+#endif
+#ifndef VT00XCON
+void (*vpaint0x) P_((SCREEN *, int, char *));
+#endif
+
+static char *hardbase;
+static short hardline;
+static short qfd[N_VT], q_fl[N_VT];
 
 INLINE static void curs_off P_((SCREEN *)), curs_on P_((SCREEN *));
-INLINE static void flash P_((SCREEN *));
 static void normal_putch P_((SCREEN *, int));
 static void escy_putch P_((SCREEN *, int));
 static void quote_putch P_((SCREEN *, int));
-
-static	char *chartab[256];
-
-static long scrnsize;
-
-short hardscroll;
-static char *hardbase;
-
-#define base (*((char **)0x44eL))
-#define _hz_200 (*((long *)0x4baL))
-#define VT_SCREEN(vt) (v0x+(vt)-1)
-
-#ifdef VT00XCON
-#define xconout	((long *) 0x57e)
-
-#define V_BASE(v) ((v)->v.t.vbase)
-#define V_LINE(v, lx4) ((v)->v.t.vbase + *(long *)((v)->v.t.rowlist+(lx4)))
-#define V_LINEAR_P(v) ((v)->v.t.on)
-#define V_ESCY1(v) (&(v)->v.t.vescy1)
-#define V_STATE(v) (&(v)->v.t.state)
-#define V_FGMASK(v) ((v)->v.t.fgmask)
-#define V_BGMASK(v) ((v)->v.t.bgmask)
-#else
-#define escy1 (*((short *)0x4acL))
-static int fgmask[MAX_PLANES], bgmask[MAX_PLANES];
-static Vfunc v00state;
-
-#define V_BASE(v) ((v) == v00 ? base : (v)->v.t.vbase)
-#define V_LINE(v, lx4) ((v) == v00 ? (base + *(long *)(rowoff+(lx4))) : \
-			((v)->v.t.vbase + *(long *)((v)->v.t.rowlist+(lx4))))
-#define V_LINEAR_P(v) ((v) == v00 || (v)->v.t.on)
-#define V_ESCY1(v) ((v) == v00 ? &escy1 : &(v)->v.t.vescy1)
-#define V_STATE(v) ((v) == v00 ? &v00state : &(v)->v.t.state)
-#define V_FGMASK(v) ((v) == v00 ? fgmask : (v)->v.t.fgmask)
-#define V_BGMASK(v) ((v) == v00 ? bgmask : (v)->v.t.bgmask)
-#endif
-
-static short hardline;
-static void (*vpaint) P_((SCREEN *, int, char *));
-static char *rowoff;
-static short qfd[N_VT], q_fl[N_VT];
-
-void exchangeb P_((void *, void *, long));
-void init P_((void));
-static int setcurrent P_((int));
-void hardware_scroll P_((SCREEN *));
-INLINE static char *PLACE P_((SCREEN *, int, int));
+INLINE static void exchangeb P_((void *, void *, long));
+INLINE static int init P_((void));
+INLINE static void deinit P_((void));
+INLINE static int setcurrent P_((int));
+INLINE static void hardware_scroll P_((SCREEN *));
+INLINE static void hardware_scroll_down P_((SCREEN *));
 INLINE static void gotoxy P_((SCREEN *, int, int));
-INLINE static void clrline P_((SCREEN *, int));
-INLINE static void clear P_((SCREEN *));
-INLINE static void clrchars P_((SCREEN *, int, int, int));
 INLINE static void clrfrom P_((SCREEN *, int, int, int, int));
 INLINE static void delete_line P_((SCREEN *, int));
 INLINE static void insert_line P_((SCREEN *, int));
 static void setbgcol P_((SCREEN *, int));
 static void setfgcol P_((SCREEN *, int));
 static void setcurs P_((SCREEN *, int));
+static void setcshape P_((SCREEN *, int));
 static void putesc P_((SCREEN *, int));
 static void escy1_putch P_((SCREEN *, int));
-#if 0
-INLINE static void put_ch P_((SCREEN *, int));
-#else
 #ifndef VT00XCON
+int fgmask[MAX_PLANES], bgmask[MAX_PLANES], fgff, bg00;
+static Vfunc v00state;
 INLINE static void put_ch00 P_((SCREEN *, int));
 #endif
 INLINE static void put_ch0x P_((SCREEN *, int));
-#endif
-
-/* routines for flashing the cursor for screen v */
-/* flash(v): invert the character currently under the cursor */
-
-INLINE static void
-flash(v)
-	SCREEN *v;
-{
-	char *place;
-	ITYPE i, j, vplanes;
-
-	vplanes = v->planes + v->planes;
-	place = v->cursaddr;
-
-	for (j = v->cheight; j > 0; --j) {
-		for (i = 0; i < vplanes; i+=2)
-			place[i] = ~place[i];
-
-		place += v->planesiz;
-	}
-	v->curstimer = v->period;
-}
 
 /* actually flash cursor (called from vcon.c) */
 
@@ -210,18 +162,32 @@ curs_on(v)
 /* init vt0[1-9] SCREEN struct */
 
 void
-init_screen(v, vbase, rowlist, on)
-	SCREEN *v;
+init_screen(v, initv, vbase, rowlist, on)
+	SCREEN *v, *initv;
 	char *vbase, *rowlist;
 	short on;
 {
 	static char initv00[sizeof (SCREEN) - offsetof (SCREEN, cheight)];
+#ifndef FORCE1PLANE
+	static int iusedplanes;
+#endif
 
-	if (on)
-		memmove (initv00, (char *)&v00->cheight, sizeof (initv00));
+	if (initv) {
+		memmove (initv00, (char *)&initv->cheight, sizeof (initv00));
+#ifndef FORCE1PLANE
+		if (initv != v00 && initv->v.t.usedplanes)
+			iusedplanes = initv->v.t.usedplanes;
+#endif
+	}
 	bzero ((char *)v, offsetof (SCREEN, cheight));
 	memmove ((char *)&v->cheight, initv00, sizeof (initv00));
 
+#ifndef FORCE1PLANE
+	if (iusedplanes)
+		v->v.t.usedplanes = iusedplanes;
+	else
+		v->v.t.usedplanes = v->planes;
+#endif
 	v->v.t.vbase = vbase;
 	v->v.t.rowlist = rowlist;
 	v->v.t.on = on;
@@ -234,17 +200,25 @@ init_screen(v, vbase, rowlist, on)
 	clear(v);
 }
 
-void
+INLINE static int
 init()
 {
 	SCREEN *v;
 	int i, j;
 	char *data, *foo;
-	static char chardata[256*16];
+	static char chardata[256*16*2];
 	register int linelen;
 
 	foo = lineA0();
-	v = v00 = (SCREEN *)(foo - 346);
+	v = getvtmode (ttys[0].v = v00 = (SCREEN *)(foo - 346));
+#ifdef FORCE1PLANE
+	if ((v->cheight != 16 && v->cheight != 8) ||
+		((v != v00 && v->v.t.usedplanes) ?
+			v->v.t.usedplanes : v->planes) != 1) {
+		ALERT("Colour and cheight != 8 or 16 not supported, recompile without -DFORCE1PLANE");
+		return -1;
+	}
+#endif
 	
 	/* Ehem... The screen might be bigger than 32767 bytes.
 	   Let's do some casting... 
@@ -254,35 +228,43 @@ init()
 	scrnsize = (v->maxy+1)*(long)linelen;
 	rowoff = (char *)kmalloc((long)((v->maxy+1) * sizeof(long) * (N_VT-1)));
 	if (rowoff == 0) {
-		FATAL("Insufficient memory for screen offset table!");
+		ALERT("Insufficient memory for screen offset table!");
+		return -ENOMEM;
 	} else {
 		long off, *lptr = (long *)rowoff;
-		SCREEN *vp = v0x+1;
+		SCREEN *vp = v0x;
 
 		for (i=0, off=0; i<=v->maxy; i++) {
 			*lptr++ = off;
 			off += linelen;
 		}
-		for (i=0; i<N_VT-1; i++) {
-			(vp++)->v.t.rowlist = (char *)lptr;
+		for (i=1; i<N_VT-1; i++) {
+			ttys[i].v = vp++;
+			vp->v.t.rowlist = (char *)lptr;
 			lptr += v->maxy+1;
 		}
+		ttys[N_VT-1].v = vp;
 	}
 	if (hardscroll == -1) {
 	/* request for auto-setting */
 		hardscroll = v->maxy+1;
 	}
-	if (!hardbase) {
+	if (!hardbase && (v == v00 || !(hardbase = v->v.t.vbase))) {
 		hardbase = (char *)(((long)kcore(SCNSIZE(v)+256L)+255L)
 					   & 0xffffff00L);
-		if (hardbase == 0)
-			FATAL("Insufficient memory for second screen buffer!");
-		init_screen(v0x, hardbase, rowoff, V_FREE);
+		if (hardbase == 0) {
+			ALERT("Insufficient memory for second screen buffer!");
+			kfree (rowoff);
+			return -ENOMEM;
+		}
 	}
+	init_screen(v0x, v, hardbase, rowoff, V_FREE);
 	hardline = 0;
-	if (v->cheight == 8 && v->planes == 2) {
-		foo = &chardata[0];
+
+#ifndef FORCE1PLANE
+	if (v->cheight == 8 && V_USEDPLANES(v) == 2) {
 		vpaint = paint8c;
+		foo = &chardata[0];
 		for (i = 0; i < 256; i++) {
 			chartab[i] = foo;
 			data = v->fontdata + i;
@@ -291,9 +273,22 @@ init()
 				data += v->form_width;
 			}
 		}
-	} else if ((v->cheight == 16 || v->cheight == 8) && v->planes == 1) {
-		foo = &chardata[0];
+		for (i = 0; i < 256; i++) {
+			chartab[i+256] = foo;
+			data = v->fontdata + i;
+			for (j = 0; j < 8; j++) {
+				unsigned char d = *data;
+
+				d |= d >> 1;
+				*foo++ = d;
+				data += v->form_width;
+			}
+		}
+	} else if ((v->cheight == 16 || v->cheight == 8) &&
+			V_USEDPLANES(v) == 1) {
 		vpaint = paint816m;
+#endif
+		foo = &chardata[0];
 		for (i = 0; i < 256; i++) {
 			chartab[i] = foo;
 			data = v->fontdata + i;
@@ -302,14 +297,30 @@ init()
 				data += v->form_width;
 			}
 		}
+		for (i = 0; i < 256; i++) {
+			chartab[i+256] = foo;
+			data = v->fontdata + i;
+			for (j = 0; j < v->cheight; j++) {
+				unsigned char d = *data;
+
+				d |= d >> 1;
+				*foo++ = d;
+				data += v->form_width;
+			}
+		}
+#ifndef FORCE1PLANE
 	}
 	else
 		vpaint = paint;
+#endif
 
 #ifndef VT00XCON
+	vpaint0x = vpaint;
+	v = v00;
+
 	if (v->hidecnt == 0) {
 	/*
-	 * make sure the cursor is set up correctly and turned on
+	 * make sure the console cursor is set up correctly and turned on
 	 */
 		(void)Cursconf(0,0);	/* turn cursor off */
 
@@ -319,7 +330,9 @@ init()
 		v->curstimer = v->period;
 		v->hidecnt = 0;
 		v->flags |= CURS_ON;
+		vpaint = paint;
 		curs_on(v);
+		vpaint = vpaint0x;
 	} else {
 		(void)Cursconf(0,0);
 		v->flags &= ~CURS_ON;
@@ -331,11 +344,12 @@ init()
 	setfgcol(v, v->fgcol);
 	*V_STATE(v) = normal_putch;
 #endif
+	return 0;
 }
 
 /* deinit, must be called after last close */
 
-void
+INLINE static void
 deinit()
 {
 	kfree (rowoff);
@@ -345,7 +359,7 @@ deinit()
    multiple of sizeof long...  (faster implementations welcome :-)
 */
 
-INLINE
+INLINE static
 void
 exchangeb(x1, x2, bytes)
 	void *x1, *x2;
@@ -360,46 +374,13 @@ exchangeb(x1, x2, bytes)
 	}
 }
 
-/*
- * PLACE(v, x, y): the address corresponding to the upper left hand corner of
- * the character at position (x,y) on screen v
- */
-INLINE static
-char *PLACE(v, x, y)
-	SCREEN *v;
-	int x, y;
-{
-	char *place;
-	int i, j;
-
-	if (V_LINEAR_P(v)) {
-		place = V_BASE(v) + x;
-		if (y == v->maxy)
-			place += scrnsize - v->linelen;
-		else if (y) {
-			y+=y;	/* Make Y into index for longword array. */
-			y+=y;	/* Two word-size adds are faster than a 2-bit shift. */
-			place += *(long *)(rowoff + y);
-		}
-	} else {
-		y+=y;	/* Make Y into index for longword array. */
-		y+=y;	/* Two word-size adds are faster than a 2-bit shift. */
-		place = V_LINE(v, y) + x;
-	}
-	if ((j = v->planes-1)) {
-		i = (x & 0xfffe);
-		do place += i;
-		while (--j);
-	}
-	return place;
-}
-
 INLINE static int
 setcurrent(vt)
 	int vt;
 {
 	static int v0xcurrent = 1;
 	SCREEN *v = VT_SCREEN(vt);
+	int save;
 
 	/* are we changing to a `stored' screen? */
 	if (vt && vt != v0xcurrent) {
@@ -437,399 +418,12 @@ setcurrent(vt)
 		v->cursaddr = PLACE(v, v->cx, v->cy);
 		v0xcurrent = vt;
 	}
+	save = !vcurrent;
 	vcurrent = vt;
 	if (vt && (v->flags & CURS_FLASH))
 		curs_on(v);
-	Setscreen(-1l, (vt ? v->v.t.vbase : base), -1);
+	showscreen (vt, (vt ? v: v00), (vt ? v->v.t.vbase : base), save);
 	return 0;
-}
-
-/*
- * paint(v, c, place): put character 'c' at position 'place' on screen
- * v. It is assumed that x, y are proper coordinates!
- * Specialized versions (paint8c and paint816m) of this routine follow;
- * they assume 8 line high characters, medium res. and 8 or 16 line/mono,
- * respectively.
- */
-
-static void
-paint(v, c, place)
-	SCREEN *v;
-	int c;
-	char *place;
-{
-	char *data, d, doinverse;
-	ITYPE j, planecount;
-	int vplanes;
-	long vform_width, vplanesiz;
-	int *fgmaskv = V_FGMASK(v), *bgmaskv = V_BGMASK(v);
-
-	vplanes = v->planes;
-
-	data = v->fontdata + c;
-	doinverse = (v->flags & FINVERSE) ? 0xff : 0;
-	vform_width = v->form_width;
-	vplanesiz = v->planesiz;
-
-	for (j = v->cheight-1; j > 0; --j) {
-		d = *data ^ doinverse;
-		for (planecount = 0; planecount < vplanes; planecount++)
-		  place[planecount << 1]
-		    = ((d & (char) fgmaskv[planecount])
-		       | (~d & (char) bgmaskv[planecount]));
-		place += vplanesiz;
-		data += vform_width;
-	}
-	d = ((v->flags & FUNDERLINE) ? -1 : *data) ^ doinverse;
-	for (planecount = 0; planecount < vplanes; planecount++)
-	  place[planecount << 1]
-	    = ((d & (char) fgmaskv[planecount])
-	       | (~d & (char) bgmaskv[planecount]));
-}
-
-static void
-paint8c(v, c, place)
-	SCREEN *v;
-	int c;
-	char *place;
-{
-	char *data;
-	char d, doinverse, dounderline;
-	char bg0, bg1, fg0, fg1;
-	long vplanesiz;
-	int *m;
-
-	data = chartab[c];
-
-	doinverse = (v->flags & FINVERSE) ? 0xff : 0;
-	dounderline = (v->flags & FUNDERLINE) ? 0xff : 0;
-	vplanesiz = v->planesiz;
-	m = V_BGMASK(v);
-	bg0 = *m++;
-	bg1 = *m++;
-	m = V_FGMASK(v);
-	fg0 = *m++;
-	fg1 = *m++;
-
-	if (!doinverse && !bg0 && !bg1 && fg0 && fg1) {
-		/* line 1 */
-		d = *data++;
-		*place = d;
-		place[2] = d;
-		place += vplanesiz;
-
-		/* line 2 */
-		d = *data++;
-		*place = d;
-		place[2] = d;
-		place += vplanesiz;
-
-		/* line 3 */
-		d = *data++;
-		*place = d;
-		place[2] = d;
-		place += vplanesiz;
-
-		/* line 4 */
-		d = *data++;
-		*place = d;
-		place[2] = d;
-		place += vplanesiz;
-
-		/* line 5 */
-		d = *data++;
-		*place = d;
-		place[2] = d;
-		place += vplanesiz;
-
-		/* line 6 */
-		d = *data++;
-		*place = d;
-		place[2] = d;
-		place += vplanesiz;
-
-		/* line 7 */
-		d = *data++;
-		*place = d;
-		place[2] = d;
-		place += vplanesiz;
-
-		/* line 8 */
-		d = *data | dounderline;
-		*place = d;
-		place[2] = d;
-	} else {
-		/* line 1 */
-		d = *data++ ^ doinverse;
-		*place = ((d & fg0) | (~d & bg0));
-		place[2] = ((d & fg1) | (~d & bg1));
-		place += vplanesiz;
-
-		/* line 2 */
-		d = *data++ ^ doinverse;
-		*place = ((d & fg0) | (~d & bg0));
-		place[2] = ((d & fg1) | (~d & bg1));
-		place += vplanesiz;
-
-		/* line 3 */
-		d = *data++ ^ doinverse;
-		*place = ((d & fg0) | (~d & bg0));
-		place[2] = ((d & fg1) | (~d & bg1));
-		place += vplanesiz;
-
-		/* line 4 */
-		d = *data++ ^ doinverse;
-		*place = ((d & fg0) | (~d & bg0));
-		place[2] = ((d & fg1) | (~d & bg1));
-		place += vplanesiz;
-
-		/* line 5 */
-		d = *data++ ^ doinverse;
-		*place = ((d & fg0) | (~d & bg0));
-		place[2] = ((d & fg1) | (~d & bg1));
-		place += vplanesiz;
-
-		/* line 6 */
-		d = *data++ ^ doinverse;
-		*place = ((d & fg0) | (~d & bg0));
-		place[2] = ((d & fg1) | (~d & bg1));
-		place += vplanesiz;
-
-		/* line 7 */
-		d = *data++ ^ doinverse;
-		*place = ((d & fg0) | (~d & bg0));
-		place[2] = ((d & fg1) | (~d & bg1));
-		place += vplanesiz;
-
-		/* line 8 */
-		d = (*data | dounderline) ^ doinverse;
-		*place = ((d & fg0) | (~d & bg0));
-		place[2] = ((d & fg1) | (~d & bg1));
-	}
-}
-
-static void
-paint816m(v, c, place)
-	SCREEN *v;
-	int c;
-	char *place;
-{
-	char *data;
-	char d, doinverse, dounderline;
-	long vplanesiz;
-
-	data = chartab[c];
-	doinverse = (v->flags & FINVERSE) ? 0xff : 0;
-	doinverse ^= (d = V_BGMASK(v)[0]);
-	dounderline = (v->flags & FUNDERLINE) ? 0xff : 0;
-	vplanesiz = v->planesiz;
-
-	if (d == V_FGMASK(v)[0])
-	  {
-	    /* fgcol and bgcol are the same -- easy */
-	    *place = d;
-	    place += vplanesiz;
-	    *place = d;
-	    place += vplanesiz;
-	    *place = d;
-	    place += vplanesiz;
-	    *place = d;
-	    place += vplanesiz;
-	    *place = d;
-	    place += vplanesiz;
-	    *place = d;
-	    place += vplanesiz;
-	    *place = d;
-	    place += vplanesiz;
-	    *place = d;
-	    if (v->cheight == 8)
-		return;
-	    place += vplanesiz;
-	    *place = d;
-	    place += vplanesiz;
-	    *place = d;
-	    place += vplanesiz;
-	    *place = d;
-	    place += vplanesiz;
-	    *place = d;
-	    place += vplanesiz;
-	    *place = d;
-	    place += vplanesiz;
-	    *place = d;
-	    place += vplanesiz;
-	    *place = d;
-	    place += vplanesiz;
-	    *place = d;
-	  }
-	else if (!doinverse) {
-		/* line 1 */
-		d = *data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 2 */
-		d = *data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 3 */
-		d = *data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 4 */
-		d = *data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 5 */
-		d = *data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 6 */
-		d = *data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 7 */
-		d = *data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 8 */
-		d = *data++;
-		if (v->cheight == 8) {
-			*place = d | dounderline;
-			return;
-		}
-		*place = d;
-
-		place += vplanesiz;
-
-		/* line 9 */
-		d = *data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 10 */
-		d = *data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 11 */
-		d = *data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 12 */
-		d = *data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 13 */
-		d = *data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 14 */
-		d = *data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 15 */
-		d = *data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 16 */
-		d = *data;
-		*place = d | dounderline;
-	} else {
-		/* line 1 */
-		d = ~*data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 2 */
-		d = ~*data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 3 */
-		d = ~*data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 4 */
-		d = ~*data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 5 */
-		d = ~*data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 6 */
-		d = ~*data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 7 */
-		d = ~*data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 8 */
-		d = ~*data++;
-		if (v->cheight == 8) {
-			*place = d | dounderline;
-			return;
-		}
-		*place = d;
-
-		place += vplanesiz;
-
-		/* line 9 */
-		d = ~*data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 10 */
-		d = ~*data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 11 */
-		d = ~*data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 12 */
-		d = ~*data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 13 */
-		d = ~*data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 14 */
-		d = ~*data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 15 */
-		d = ~*data++;
-		*place = d;
-		place += vplanesiz;
-
-		/* line 16 */
-		d = ~*data;
-		*place = d | dounderline;
-	}
 }
 
 /*
@@ -850,153 +444,6 @@ gotoxy(v, x, y)
 	v->cx = x;
 	v->cy = y;
 	v->cursaddr = PLACE(v, x, y);
-}
-
-/*
- * clrline(v, r): clear line r of screen v
- */
-
-INLINE static void
-clrline(v, r)
-	SCREEN *v;
-	int r;
-{
-	int *dst, *m;
-	long nwords;
-	int i, vplanes = v->planes;
-
-	/* Hey, again the screen might be bigger than 32767 bytes.
-	   Do another cast... */
-	r += r;
-	r += r;
-	dst = (int *)(V_LINE(v, r));
-	if (v->bgcol == 0)
-	  zero((char *)dst, v->linelen);
-	else if (vplanes == 1)
-	  memset ((char *)dst, *V_BGMASK(v), v->linelen);
-	else
-	  {
-	    /* do it the hard way */
-	    for (nwords = v->linelen >> 1; nwords > 0; nwords -= vplanes)
-	      {
-		m = V_BGMASK(v);
-		for (i = 0; i < vplanes; i++)
-		  *dst++ = *m++;
-	      }
-	  }
-}
-	
-/*
- * clear(v): clear the whole screen v
- */
-
-INLINE static void
-clear(v)
-	SCREEN *v;
-{
-	int i, vplanes = v->planes;
-	int *dst = (int *) V_BASE(v), *m;
-	long nwords;
-
-	if (!V_LINEAR_P(v))
-	  memmove (v->v.t.rowlist, rowoff, ((v->maxy+1) * sizeof(long)));
-	if (v->bgcol == 0)
-	  zero((char *)dst, scrnsize);
-	else if (vplanes == 1)
-	  memset ((char *)dst, *V_BGMASK(v), scrnsize);
-	else
-	  {
-	    /* do it the hard way */
-	    for (nwords = scrnsize >> 1; nwords > 0; nwords -= vplanes)
-	      {
-		m = V_BGMASK(v);
-		for (i = 0; i < vplanes; i++)
-		  *dst++ = *m++;
-	      }
-	  }
-}
-
-/*
- * clrchars(v, x, y, n): clear n chars starting at position (x,y) on screen v
- */
-
-/*INLINE*/ static void
-clrchars(v, x, y, n)
-	SCREEN *v;
-	int x, y, n;
-{
-	int i, j, vplanes;
-	char *place;
-	int *m, *l;
-
-	if (!x && n == v->maxx+1) {
-		clrline(v, y);
-		return;
-	}
-	vplanes = v->planes + v->planes;
-
-	if (y == v->cy && x == v->cx)
-		place = v->cursaddr;
-	else
-		place = PLACE(v, x, y);
-
-	l = V_BGMASK(v);
-	if (vplanes > 2) {
-		if (x & 1) {
-			char *p = place;
-			for (j = v->cheight; j > 0; --j) {
-				char *q = p;
-				m = l;
-				for (i = 0; i < vplanes; i += 2) {
-					*q++ = (char) *m++;
-					++q;
-				}
-				p += v->planesiz;
-			}
-			place += vplanes-1;
-			--n;
-		}
-		if (n > 1) {
-			int nbytes = n*(vplanes>>1);
-			char *p = place;
-			place += nbytes;
-
-			if (v->bgcol == 0) {
-				for (j = v->cheight; j > 0; --j) {
-					bzero(p, nbytes);
-					p += v->planesiz;
-				}
-			} else {
-				for (j = v->cheight; j > 0; --j) {
-					short *q = (short *)p;
-					int k;
-
-					for (k = n; k > 1; k -= 2) {
-						m = l;
-						for (i = 0; i < vplanes; i += 2)
-							*q++ = *m++;
-					}
-					p += v->planesiz;
-				}
-			}
-		}
-		if (n & 1) {
-			for (j = v->cheight; j > 0; --j) {
-				char *p = place;
-				m = l;
-				for (i = 0; i < vplanes; i += 2) {
-					*p++ = (char) *m++;
-					++p;
-				}
-			}
-			place += v->planesiz;
-		}
-	} else {
-		for (j = v->cheight; j > 0; --j) {
-			memset (place, *l, n);
-			place += v->planesiz;
-		}
-	}
 }
 
 /*
@@ -1024,7 +471,7 @@ clrfrom(v, x1, y1, x2, y2)
  * just move the physical screen base, otherwise copy the screen back to the
  * hardware base and start over
  */
-void
+INLINE static void
 hardware_scroll(v)
 	SCREEN *v;
 {
@@ -1039,7 +486,7 @@ hardware_scroll(v)
 	}
 	v->cursaddr = PLACE(v, v->cx, v->cy);
 	if (vcurrent)
-		Setscreen(-1l, v->v.t.vbase, -1);
+		showscreen (vcurrent, v, v->v.t.vbase, 0);
 }
 
 /*
@@ -1086,12 +533,12 @@ delete_line(v, r)
 			clrline(v, v->maxy);
 			return;
 		}
-		nbytes = scrnsize - v->linelen;
+		nbytes = V_SCRNSIZE(v) - v->linelen;
 	} else {
 		register int i = v->maxy - r;
 		i += i;
 		i += i;
-		nbytes = *(long *)(rowoff+i);
+		nbytes = V_LINEOFF(v, i);
 	}
 
 	/* Sheeze, how many times do we really have to cast... 
@@ -1100,7 +547,7 @@ delete_line(v, r)
 
 	r += r;
 	r += r;
-	dst = (long *)(V_BASE(v) + *(long *)(rowoff + r));
+	dst = (long *) V_LINE(v, r);
 	src = (long *)( ((long)dst) + v->linelen);
 
 	quickmove(dst, src, nbytes);
@@ -1109,7 +556,7 @@ delete_line(v, r)
 	clrline(v, v->maxy);
 }
 
-void
+INLINE static void
 hardware_scroll_down(v)
 	SCREEN *v;
 {
@@ -1124,7 +571,7 @@ hardware_scroll_down(v)
 	}
 	v->cursaddr = PLACE(v, v->cx, v->cy);
 	if (vcurrent)
-		Setscreen(-1l, v->v.t.vbase, -1);
+		showscreen (vcurrent, v, v->v.t.vbase, 0);
 }
 
 /*
@@ -1172,7 +619,7 @@ insert_line(v, r)
 	j = r+r;
 	j += j;
 	linelen = v->linelen;
-	src = (long *)(V_BASE(v) + *(long *)(rowoff + i));
+	src = (long *) V_LINE(v, i);
 	dst = (long *)((long)src + linelen);
 	for (; i >= j ; i -= 4) {
 	/* move line i to line i+1 */
@@ -1195,12 +642,22 @@ setbgcol(v, c)
 	SCREEN *v;
 	int c;
 {
-	int i;
+#ifdef FORCE1PLANE
+	*V_BGMASK(v) = (v->bgcol = c & 1) ? -1 : 0;
+#else
 	int *m = V_BGMASK(v);
+	int i, vplanes = V_USEDPLANES(v);
 
-	v->bgcol = c & ((1 << v->planes)-1);
-	for (i = 0; i < v->planes; i++)
+	v->bgcol = c & ((1 << vplanes)-1);
+	*V_BG00(v) = !v->bgcol;
+#ifndef VT00XCON
+	if (v == v00)
+		memset (m, ((v->bgcol == ((1 << vplanes)-1)) ? -1 : 0),
+			MAX_PLANES * sizeof (*m));
+#endif
+	for (i = 0; i < vplanes; i++)
 	    *m++ = (v->bgcol & (1 << i)) ? -1 : 0;
+#endif
 	*V_STATE(v) = normal_putch;
 }
 
@@ -1209,12 +666,22 @@ setfgcol(v, c)
 	SCREEN *v;
 	int c;
 {
-	int i;
+#ifdef FORCE1PLANE
+	*V_FGMASK(v) = (v->fgcol = c & 1) ? -1 : 0;
+#else
 	int *m = V_FGMASK(v);
+	int i, vplanes = V_USEDPLANES(v);
 
-	v->fgcol = c & ((1 << v->planes)-1);
-	for (i = 0; i < v->planes; i++)
+	v->fgcol = c & ((1 << vplanes)-1);
+	*V_FGFF(v) = v->fgcol == ((1 << vplanes)-1);
+#ifndef VT00XCON
+	if (v == v00)
+		memset (m, (*V_FGFF(v) ? -1 : 0),
+			MAX_PLANES * sizeof (*m));
+#endif
+	for (i = 0; i < vplanes; i++)
 	    *m++ = (v->fgcol & (1 << i)) ? -1 : 0;
+#endif
 	*V_STATE(v) = normal_putch;
 }
 
@@ -1233,13 +700,36 @@ setcurs(v, c)
 	*V_STATE(v) = normal_putch;
 }
 
-/* set special effects...  FIXME: only inverse and underline do anything */
+/* set cursor shape, bit 0 = blink(0)/steady(1), bit 1..? = shape
+ * (0 = underline, 1 = block, 2..? unused; ignored on console)
+ */
+static void
+setcshape(v, c)
+	SCREEN *v;
+	int c;
+{
+	if (c & 1) {
+		v->flags &= ~CURS_FLASH;
+		--c;
+	} else {
+		v->flags |= CURS_FLASH;
+	}
+#ifndef VT00XCON
+	if (v != v00)
+#endif
+		v->v.t.cshape = c - ' ';
+	*V_STATE(v) = normal_putch;
+}
+
+/* set special effects...  FIXME: still ignores light/italic */
 static void
 seffect_putch(v, c)
 	SCREEN *v;
 	int c;
 {
-	v->flags |= ((c & 0x10) ? FINVERSE : 0)|((c & 0x8) ? FUNDERLINE : 0);
+	v->flags |= ((c & 0x10) ? FINVERSE : 0)|
+			((c & 0x8) ? FUNDERLINE : 0)|
+			((c & 0x1) ? FBOLD : 0);
 	*V_STATE(v) = normal_putch;
 }
 
@@ -1249,7 +739,9 @@ ceffect_putch(v, c)
 	SCREEN *v;
 	int c;
 {
-	v->flags &= ~(((c & 0x10) ? FINVERSE : 0)|((c & 0x8) ? FUNDERLINE : 0));
+	v->flags &= ~(((c & 0x10) ? FINVERSE : 0)|
+			((c & 0x8) ? FUNDERLINE : 0)|
+			((c & 0x1) ? FBOLD : 0));
 	*V_STATE(v) = normal_putch;
 }
 
@@ -1258,7 +750,11 @@ quote_putch(v, c)
 	SCREEN *v;
 	int c;
 {
+#ifdef FORCE1PLANE
+	paint816m(v, c, v->cursaddr);
+#else
 	(*vpaint)(v, c, v->cursaddr);
+#endif
 	*V_STATE(v) = normal_putch;
 }
 
@@ -1412,6 +908,9 @@ moveup:			v->cy = --cy;
 	case 't':		/* EXTENSION: set cursor flash rate */
 		*V_STATE(v) = setcurs;
 		return;
+	case '.':		/* EXTENSION: set cursor shape */
+		*V_STATE(v) = setcshape;
+		return;
 	case 'v':		/* wrap on */
 		v->flags |= FWRAP;
 		break;
@@ -1426,6 +925,12 @@ moveup:			v->cy = --cy;
 		*V_STATE(v) = ceffect_putch;
 		curs_on(v);
 		return;
+	case '(':		/* EXTENSION: boldface on */
+		v->flags |= FBOLD;
+		break;
+	case ')':		/* EXTENSION: boldface off */
+		v->flags &= ~FBOLD;
+		break;
 	}
 	*V_STATE(v) = normal_putch;
 }
@@ -1439,7 +944,7 @@ escy1_putch(v, c)
 	int c;
 {
 	/* some (un*x) termcaps seem to always set the hi bit on
-	   cm args (cm=\EY%+ %+ :) -> drop that unless the screen
+	   cm args (cm=\EY%+ %+ ) -> drop that unless the screen
 	   is bigger.	-nox
 	*/
 	gotoxy(v, (c-' ') & (v->maxx|0x7f), (*V_ESCY1(v)-' ') & (v->maxy|0x7f));
@@ -1517,7 +1022,7 @@ col0:			v->cx = 0;
 			*V_STATE(v) = putesc;
 			return;
 		case '\t':
-			if (v->cx < v->maxx) {
+			if (v->cx <= v->maxx) {
 			/* this can't be register for an ANSI compiler */
 				union {
 					long l;
@@ -1527,8 +1032,14 @@ col0:			v->cx = 0;
 				j.i[1] = 8 - (v->cx & 7);
 				v->cx += j.i[1];
 				if (v->cx - v->maxx > 0) {
-					j.i[1] = v->cx - v->maxx;
+					j.i[1] -= v->cx - v->maxx;
 					v->cx = v->maxx;
+					if (v->flags & FWRAP) {
+						normal_putch(v, '\n');
+						goto col0;
+					}
+					if (j.i[1] <= 0)
+						return;
 				}
 				v->cursaddr += j.l;
 				if ((i = v->planes-1)) {
@@ -1544,7 +1055,11 @@ col0:			v->cx = 0;
 		}
 	}
 
+#ifdef FORCE1PLANE
+	paint816m(v, c, v->cursaddr);
+#else
 	(*vpaint)(v, c, v->cursaddr);
+#endif
 	v->cx++;
 	if (v->cx > v->maxx) {
 		if (v->flags & FWRAP) {
@@ -1570,13 +1085,14 @@ col0:			v->cx = 0;
 #define xcon_exec(add, ch) \
 ({									\
 	register long retvalue __asm__("d0");				\
-	long  _add = (long) (add);					\
+	register long  _add __asm__("a0") = (long) (add);		\
 	long  _ch  = (long) (ch);					\
 	    								\
 	__asm__ volatile						\
 	("\
 		movml   a5-a6/d7,sp@-;					\
 		movl    %2,sp@-;					\
+		subl    a5,a5;			/* TOS 1.(0)4 bug */	\
 		jsr	%1@;						\
 		addql	#4,sp;						\
 		movml   sp@+,a5-a6/d7; "				\
@@ -1635,21 +1151,23 @@ screen_open(f)
 		if (!xconout[CONDEV])
 			return -EINTERNAL;
 #endif
-		init();
-	} else if (!ttys[0].use_cnt || leaving)
+		if ((fd = init()))
+			/* pass error... */
+			return fd;
+	} else if (!ttys[0].tt.use_cnt || leaving)
 		/* if we're init'ed already and vt00 is closed that means
 		   we're uninistalling... */
 		return -EACCESS;
 	if (!((struct tty *)f->devinfo)->use_cnt) {
 		/* init and alloc screen memory if necessary */
 		if (vt) {
-			SCREEN *v = VT_SCREEN(vt);
+			SCREEN *v = TT_SCREEN((struct tty *)f->devinfo);
 
 			if (!v->v.t.vbase) {
 				char *vbase = (char *)kmalloc(scrnsize);
 				if (!vbase)
 					return -ENOMEM;
-				init_screen (v, vbase, v->v.t.rowlist, 0);
+				init_screen (v, (void *)0, vbase, v->v.t.rowlist, 0);
 			} else if (v->v.t.on == V_FREE)
 				v->v.t.on = V_USED;
 		}
@@ -1683,7 +1201,7 @@ screen_close(f, pid)
 			deinit();
 		/* otherwise it means free screen memory */
 		else {
-			SCREEN *v = VT_SCREEN(vt);
+			SCREEN *v = TT_SCREEN((struct tty *)f->devinfo);
 
 			if (v->v.t.on)
 				v->v.t.on = V_FREE;
@@ -1696,6 +1214,8 @@ screen_close(f, pid)
 	return 0;
 }
 
+#define _hz_200 (*((long *)0x4baL))
+
 static long ARGS_ON_STACK 
 screen_write(f, buf, bytes)
 	FILEPTR *f; const char *buf; long bytes;
@@ -1706,8 +1226,6 @@ screen_write(f, buf, bytes)
 	long ret = 0;
 	int c;
 	long tick;
-
-	UNUSED(f);
 
 	/* tty_write is calling us with no more than one line or 128
 	   chars at a time but still never(?) allows task-switches
@@ -1723,9 +1241,9 @@ screen_write(f, buf, bytes)
 	tick = _hz_200;
 #endif
 	r = (long *)buf;
+	v = TT_SCREEN((struct tty *)f->devinfo);
 #ifdef VT00XCON
 	if (vt) {
-		v = VT_SCREEN(vt);
 		v->hidecnt++;
 		v->flags |= CURS_UPD;		/* for TOS 1.0 */
 		curs_off(v);
@@ -1748,17 +1266,20 @@ screen_write(f, buf, bytes)
 		}
 	}
 #else
-	v = vt ? VT_SCREEN(vt) : v00;
 	v->hidecnt++;
 	v->flags |= CURS_UPD;		/* for TOS 1.0 */
-	curs_off(v);
 	if (vt) {
+		curs_off(v);
 		while (bytes > 0) {
 			c = (int) *r++;
 			put_ch0x(v, c);
 			bytes -= 4; ret+= 4;
 		}
 	} else {
+		if (v->cheight != v0x->cheight ||
+		    V_USEDPLANES(v) != v0x->v.t.usedplanes)
+			vpaint = paint;
+		curs_off(v);
 		while (bytes > 0) {
 			c = (int) *r++;
 			put_ch00(v, c);
@@ -1771,6 +1292,7 @@ screen_write(f, buf, bytes)
 		v->hidecnt = 0;
 	curs_on(v);
 	v->flags &= ~CURS_UPD;
+	vpaint = vpaint0x;
 #endif
 #if 1
 	if (tick != _hz_200 && !(tick & 3))
@@ -1824,7 +1346,7 @@ screen_ioctl(f, mode, buf)
 		return FCNTL (qfd[vt], r, TIOCFLUSH);
 	}
 	else if (mode == TIOCGWINSZ) {
-		SCREEN *v = vt ? VT_SCREEN(vt) : v00;
+		SCREEN *v = TT_SCREEN((struct tty *)f->devinfo);
 		w = (struct winsize *)buf;
 		w->ws_row = v->maxy+1;
 		w->ws_col = v->maxx+1;
@@ -1835,11 +1357,8 @@ screen_ioctl(f, mode, buf)
 	else if (mode >= TCURSOFF && mode <= TCURSGRATE)
 #endif
 	{
-#ifdef VT00XCON
-		SCREEN *v = VT_SCREEN(vt);
-#else
-		SCREEN *v = vt ? VT_SCREEN(vt) : v00;
-#endif
+		SCREEN *v = TT_SCREEN((struct tty *)f->devinfo);
+
 		switch(mode) {
 		case TCURSOFF:
 			curs_off(v);
@@ -1888,9 +1407,9 @@ screen_ioctl(f, mode, buf)
 			xflash ();
 			return 0;
 		case VCTLWSEL:
-			if (ttys[(long) buf].rsel) {
-				WAKESELECT(ttys[(long) buf].rsel);
-				ttys[(long) buf].rsel = 0;
+			if (ttys[(long) buf].tt.rsel) {
+				WAKESELECT(ttys[(long) buf].tt.rsel);
+				ttys[(long) buf].tt.rsel = 0;
 			}
 		}
 	} else

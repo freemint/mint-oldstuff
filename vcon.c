@@ -1,5 +1,5 @@
 /*
- * virtual terminals for MiNT, v0.2 (still alpha...)
+ * virtual terminals for MiNT, v0.3 (still alpha...)
  *
  * vt01..9 are fast hardware-scrolling text-terminals, vt00 is the
  * original console and can still be used for GEM. (i hope :)
@@ -29,6 +29,7 @@
 #include <setjmp.h>
 #include <support.h>
 #include <signal.h>
+#include <stat.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -36,25 +37,31 @@
 #include "vcon.h"
 #include "vtdev.h"
 
+#ifndef O_NOCTTY
+#define O_NOCTTY	0x4000
+#endif
+
+long _stksize = 0x4000;
+
 /* kernel information */
 struct kerinfo *kernel;
 
 struct dev_descr devinfo[] = {
-	{&vcon_device, 0, O_TTY, ttys+0, {0L, 0L, 0L, 0L}},  /* vt00 (console) */
-	{&vcon_device, 1, O_TTY, ttys+1, {0L, 0L, 0L, 0L}},  /* vt01 */
-	{&vcon_device, 2, O_TTY, ttys+2, {0L, 0L, 0L, 0L}},  /* vt02 */
-	{&vcon_device, 3, O_TTY, ttys+3, {0L, 0L, 0L, 0L}},  /* vt03 */
-	{&vcon_device, 4, O_TTY, ttys+4, {0L, 0L, 0L, 0L}},  /* vt04 */
-	{&vcon_device, 5, O_TTY, ttys+5, {0L, 0L, 0L, 0L}},  /* vt05 */
-	{&vcon_device, 6, O_TTY, ttys+6, {0L, 0L, 0L, 0L}},  /* vt06 */
-	{&vcon_device, 7, O_TTY, ttys+7, {0L, 0L, 0L, 0L}},  /* vt07 */
-	{&vcon_device, 8, O_TTY, ttys+8, {0L, 0L, 0L, 0L}},  /* vt08 */
-	{&vcon_device, 9, O_TTY, ttys+9, {0L, 0L, 0L, 0L}}   /* vt09 */
+	{&vcon_device, 0, O_TTY, &ttys[0].tt, {0L, 0L, 0L, 0L}},  /* vt00 (console) */
+	{&vcon_device, 1, O_TTY, &ttys[1].tt, {0L, 0L, 0L, 0L}},  /* vt01 */
+	{&vcon_device, 2, O_TTY, &ttys[2].tt, {0L, 0L, 0L, 0L}},  /* vt02 */
+	{&vcon_device, 3, O_TTY, &ttys[3].tt, {0L, 0L, 0L, 0L}},  /* vt03 */
+	{&vcon_device, 4, O_TTY, &ttys[4].tt, {0L, 0L, 0L, 0L}},  /* vt04 */
+	{&vcon_device, 5, O_TTY, &ttys[5].tt, {0L, 0L, 0L, 0L}},  /* vt05 */
+	{&vcon_device, 6, O_TTY, &ttys[6].tt, {0L, 0L, 0L, 0L}},  /* vt06 */
+	{&vcon_device, 7, O_TTY, &ttys[7].tt, {0L, 0L, 0L, 0L}},  /* vt07 */
+	{&vcon_device, 8, O_TTY, &ttys[8].tt, {0L, 0L, 0L, 0L}},  /* vt08 */
+	{&vcon_device, 9, O_TTY, &ttys[9].tt, {0L, 0L, 0L, 0L}}   /* vt09 */
 };
 
 #define MAX_VT ((sizeof devinfo)/sizeof (struct dev_descr))
 
-struct tty ttys[MAX_VT];
+struct ttyv ttys[MAX_VT];
 
 struct sgttyb con;
 int conflags;
@@ -85,24 +92,24 @@ void con_sane()
 	if (cfd >= 0) {
 		/* try to uninstall gracefully... */
 		int opencnt = 0;
-		char *vt00name=ttyname(cfd), *oldcname=ttyname(0), *s;
+		char *vt00name, *oldcname, *s;
 		long vpgrp;
 
 		/* /dev/vt00 might be renamed /dev/console... */
-		if (vt00name && (s = strrchr (vt00name, '/')) &&
+		if ((vt00name=ttyname(cfd)) && (s = strrchr (vt00name, '/')) &&
 		    !strcmp (s, "/console"))
 			rename (vt00name, "u:/dev/vt00");
 		/* move original console device in place */
-		if (oldcname && (s = strrchr (oldcname, '/')) &&
+		if ((oldcname=ttyname(0)) && (s = strrchr (oldcname, '/')) &&
 		    strcmp (s, "/console"))
 			rename (oldcname, "u:/dev/console");
 
 		/* tell processes their tty is going away */
 		leaving = 1;
 		for (i = 0; i < MAX_VT; ++i) {
-			if (ttys[i].use_cnt > !i) {
+			if (ttys[i].tt.use_cnt > !i) {
 				++opencnt;
-				if ((vpgrp = ttys[vcurrent].pgrp))
+				if ((vpgrp = ttys[i].tt.pgrp) && vpgrp != pgrp)
 					killpg(vpgrp, SIGHUP);
 			}
 		}
@@ -114,11 +121,12 @@ void con_sane()
 			/* sleep(1);  (save space...) */
 			(void) Fselect (1000, 0l, 0l, 0l);
 			for (i = 0; i < MAX_VT; ++i)
-				if (ttys[i].use_cnt > !i)
+				if (ttys[i].tt.use_cnt > !i)
 					++opencnt;
 		}
 		Fcntl(cfd, (char *) 0, VCTLSETV);
-		Fclose (cfd);
+		close (cfd);
+		cfd = -1;
 #if 1
 		vpgrp = 0;
 		Fcntl(0, &vpgrp, TIOCSPGRP);
@@ -142,6 +150,8 @@ void con_sane()
 void trap(sig)
 int sig;
 {
+	if (leaving)
+		return;
 	con_sane();
 	signal(sig, SIG_DFL);
 	/* die! */
@@ -155,7 +165,7 @@ int sig;
 	int vpgrp;
 
 	/* see who is on the tty and if its a different process group... */
-	if (ttys[vcurrent].use_cnt && ((vpgrp = ttys[vcurrent].pgrp)) &&
+	if (ttys[vcurrent].tt.use_cnt && ((vpgrp = ttys[vcurrent].tt.pgrp)) &&
 	    vpgrp != pgrp) {
 		/* if yes, pass the signal */
 		signal(sig, SIG_IGN);
@@ -196,7 +206,7 @@ char *getpkbshift()
 	(void) Supexec(getsyshd);
 	/* TOS 1.(0)2 or newer has it in the header */
 	if (syshdr->os_version > 0x100)
-		return syshdr->pkbshift;
+		return (char *)syshdr->pkbshift;
 	else
 	/* TOS 1.0 */
 		return (char *) 0x0e1bL;
@@ -233,8 +243,8 @@ long *cbuf, *bufp;
 			/* else send buffer */
 			Fwrite (fd, bytes, cbuf);
 			/* if someone select()ed this terminal wake 'em up */
-			if (ttys[vcurrent].rsel)
-				Fcntl(cfd, (char *) vcurrent, VCTLWSEL);
+			if (ttys[vcurrent].tt.rsel)
+				Fcntl(cfd, (char *) (long) vcurrent, VCTLWSEL);
 		}
 	}
 }
@@ -250,6 +260,7 @@ main()
 	char *s;
 	volatile char *pkbshift = getpkbshift();
 	long cbuf[0x80], *bufp;
+	int open();
 
 	/* sanity check */
 	if (!(s = ttyname (0)) || (!(s = strrchr (s, '/'))) ||
@@ -273,6 +284,7 @@ main()
 	signal(SIGTTOU, trap_tt);
 	con_raw();
 
+	umask (022);
 	for (i = 0; i < MAX_VT; ++i) {
 		char name[] = "u:\\pipe\\q$vt00";
 
@@ -299,12 +311,11 @@ main()
 		}
 	}
 
-	if ((cfd = Fopen ("u:\\dev\\vt00", O_RDWR)) < 0) {
+	if ((cfd = open ("u:\\dev\\vt00", O_NOCTTY|O_RDWR)) < 0) {
 		con_sane();
-		Cconws ("Help!!  Fopen new console device failed.\r\n");
+		Cconws ("Help!!  open new console device failed.\r\n");
 		exit (1);
 	}
-	Fcntl (cfd, 0, F_SETFD);
 #if 0
 	/* better put this in rc.local... (or mint.cnf) */
 	Frename (0, "u:\\dev\\console", "u:\\dev\\con00");
@@ -416,46 +427,46 @@ main()
 				if ((scan -= 0x44) < MAX_VT) {
 					csend (vcurrent, fd, cbuf, bufp);
 					bufp = cbuf;
-					if (Fcntl(cfd, (char *) scan, VCTLSETV))
+					if (Fcntl(cfd, (char *) (long) scan, VCTLSETV))
 						Fputchar (0, 07l, 0);
 					else
 						fshort = 1;
 					continue;
 				}
 			break;
-		} else	if ((ttys[vcurrent].state & TS_COOKED) ||
+		} else	if ((ttys[vcurrent].tt.state & TS_COOKED) ||
 			    (cshift & 0xc) == 0xc) {
 			char ch = (char) l;
 			int sig = 0;
 
 			if (!ch)
 				;	/* do nothing */
-			else if (ch == ttys[vcurrent].tc.t_intrc)
+			else if (ch == ttys[vcurrent].tt.tc.t_intrc)
 				sig = SIGINT;
-			else if (ch == ttys[vcurrent].tc.t_quitc)
+			else if (ch == ttys[vcurrent].tt.tc.t_quitc)
 				sig = SIGQUIT;
-			else if (ch == ttys[vcurrent].ltc.t_suspc)
+			else if (ch == ttys[vcurrent].tt.ltc.t_suspc)
 				sig = SIGTSTP;
-			else if (ch == ttys[vcurrent].tc.t_stopc) {
-				ttys[vcurrent].state |= TS_HOLD;
+			else if (ch == ttys[vcurrent].tt.tc.t_stopc) {
+				ttys[vcurrent].tt.state |= TS_HOLD;
 				continue;
 			}
-			else if (ch == ttys[vcurrent].tc.t_startc) {
-				ttys[vcurrent].state &= ~TS_HOLD;
+			else if (ch == ttys[vcurrent].tt.tc.t_startc) {
+				ttys[vcurrent].tt.state &= ~TS_HOLD;
 				continue;
 			}
 			if (sig) {
-				ttys[vcurrent].state &= ~TS_HOLD;
-				if (!(ttys[vcurrent].sg.sg_flags & T_NOFLSH))
+				ttys[vcurrent].tt.state &= ~TS_HOLD;
+				if (!(ttys[vcurrent].tt.sg.sg_flags & T_NOFLSH))
 					Fcntl (fd, (char *) 0, TIOCFLUSH);
 				else
 					csend (vcurrent, fd, cbuf, bufp);
 				bufp = cbuf;
-				if (ttys[vcurrent].pgrp)
-					killpg (ttys[vcurrent].pgrp, sig);
+				if (ttys[vcurrent].tt.pgrp)
+					killpg (ttys[vcurrent].tt.pgrp, sig);
 				continue;
 			}
-			else if (ttys[vcurrent].state & TS_HOLD) {
+			else if (ttys[vcurrent].tt.state & TS_HOLD) {
 				continue;
 			}
 		}
