@@ -1,0 +1,38 @@
+.TH WLOGIN 1
+.SH NAME
+wlogin \- make windows look like login terminals
+.SH SYNOPSIS
+.B wlogin
+.SH DESCRIPTION
+.IR wlogin (1)
+runs
+.IR login (1),
+waits for the login shell to terminate,
+and updates the utmp and wtmp files accordingly.
+This allows the use of windows, such as those produced by
+.B MGR
+to be used as fake login terminals.
+.sp
+There are two ways to start
+.IR wlogin (1).
+The first is to set the envionment variable
+.B SHELL
+to `wlogin' before the window manager is invoked; this means that any window
+which is started will be a terminal window.
+The other is to run
+.IR wlogin (1)
+from the normal shell in the window (often with the use of the
+.B exec
+command built into most shells).
+.SH FILES
+.IP \fB/etc/utmp\fR
+List of logged on users.
+.IP \fB/var/adm/wtmp\fR
+Login records.
+.SH "SEE ALSO"
+login(1), mgr(1), utmp(5)
+.SH AUTHOR
+Dave Gymer (dpg@Cs.Nott.AC.UK, until about May 1993).
+.sp
+$Id: wlogin.1,v 0.1 1992/01/26 12:08:02 dpg Exp $
+.EX

@@ -1,0 +1,64 @@
+.TH AC 8
+.SH NAME
+ac \- login accounting
+.SH SYNOPSIS
+.B /etc/ac
+[
+.B -dp
+] [
+.B -w
+.I file
+] [
+.IR user ...
+]
+.SH DESCRIPTION
+.IR ac (8)
+lists the connect time for users who have logged in during the life of the
+.I wtmp
+file. Totals over this lifetime, or each midnight\-to\-midnight period can
+be produced.
+.sp
+If one or more
+.IR user s
+are listed, the times printed are limited to those accumulated by those users.
+.SH OPTIONS
+.IP \fB-d\fR
+Print daily totals.
+.IP \fB-p\fR
+Print individual totals. By default, grand totals are printed.
+.IP "\fB-w\fR \fIfile\fR"
+Name a file other than
+.B /var/adm/wtmp
+for login records.
+.SH FILES
+\fB/var/adm/wtmp\fR
+.SH "SEE ALSO"
+login(1), utmp(5), init(8)
+.SH NOTES
+There is an extra feature included within this version of
+.IR ac (8)
+which is not present in the UN*X version, and is available as a compile\-time
+option. A user called
+.B shutdown
+is given special treatment; it is assumed that when this user logs on, the
+system is brought down, but not logout is ever recorded in the
+.I wtmp
+file for them. The rebooting of the system is used instead of a logout; thus,
+the `connect' times for this user actually give the amount of time the system
+has been down. Note that this does not conflict with the shutdown and
+reboot records placed in the
+.I wtmp
+file by
+.IR init (8),
+since they have a ut_line field of `~', whereas login records for the
+.B shutdown
+user have a real terminal line.
+.SH AUTHOR
+Dave Gymer (dpg@Cs.Nott.AC.UK, until about May 1993).
+.sp
+Based on (but not derived from) the
+.B SunOS
+version.
+.sp
+$Id: ac.8,v 0.1 1992/01/25 19:28:22 dpg Exp $
+.EX

@@ -1,0 +1,66 @@
+/* from Henry Spencer's stringlib */
+/* modified by ERS */
+
+#include <string.h>
+#include <ctype.h>
+#ifdef __LATTICE__
+#undef strcmp
+#endif
+
+/*
+ * strcmp - compare string s1 to s2
+ */
+
+extern void *malloc();
+
+int				/* <0 for <, 0 for ==, >0 for > */
+strcasecmp(scan1, scan2)
+register const char *scan1;
+register const char *scan2;
+{
+	register char c1, c2;
+	register char *ptr1, *ptr2, *ptr3;
+
+	if (!scan1)
+		return scan2 ? -1 : 0;
+	if (!scan2) return 1;
+
+	if ((ptr1 = malloc(strlen(scan1))) == NULL)
+		return -1;
+	else
+	{
+		for (ptr3 = ptr1; *ptr3 != NULL; ptr3++)
+			if (islower(*ptr3))
+				*ptr3 = toupper(*ptr3);
+	}
+
+	if ((ptr2 = malloc(strlen(scan2))) == NULL)
+	{
+		free(ptr1);
+		return -1;
+	}
+	else
+	{
+		for (ptr3 = ptr2; *ptr3 != NULL; ptr3++)
+			if (islower(*ptr3))
+				*ptr3 = toupper(*ptr3);
+	}
+
+	do {
+		c1 = *ptr1++; c2 = *ptr2++;
+	} while (c1 && c1 == c2);
+
+	/*
+	 * The following case analysis is necessary so that characters
+	 * which look negative collate low against normal characters but
+	 * high against the end-of-string NUL.
+	 */
+	if (c1 == c2)
+		return(0);
+	else if (c1 == '\0')
+		return(-1);
+	else if (c2 == '\0')
+		return(1);
+	else
+		return(c1 - c2);
+}

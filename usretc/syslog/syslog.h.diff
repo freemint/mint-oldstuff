@@ -1,0 +1,15 @@
+*** syslog.h.orig	Thu Aug  5 10:23:20 1993
+--- syslog.h	Thu Aug  5 10:23:20 1993
+***************
+*** 96,100 ****
+  #define LOG_HOST 	"avalon"	/* name of host to log on */
+  
+  #ifdef atarist
+! #define MAXLINE 1024
+  #endif
+--- 96,100 ----
+  #define LOG_HOST 	"avalon"	/* name of host to log on */
+  
+  #ifdef atarist
+! #define MAXLINE 960
+  #endif

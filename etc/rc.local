@@ -1,0 +1,27 @@
+#!/bin/sh
+# This is rc.local.
+#
+# This file does everything which is local to the current machine.
+#
+PATH=/bin:/usr/bin:/usr/etc:/usr/ucb; export PATH
+
+echo -n "starting additional services:"
+
+echo "."
+
+if [ -f /usr/etc/syslogd ]; then
+	echo "starting system logger"
+	rm -f /dev/log
+	syslogd &
+fi
+
+echo -n "starting local daemons:"
+
+echo "."
+
+# Set the TT's console into auto-wrap mode. (Why does the TT start up without
+# auto-text-wrap?)
+
+echo -n "v"
+
+exit 0

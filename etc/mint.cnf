@@ -1,0 +1,56 @@
+BIOSBUF=yes
+HARDSCROLL=10
+INIT=u:\usr\sbin\init
+#CON=u:\dev\fasttext
+#DEBUG_LEVEL=2
+SLICES=1
+
+cd u:\
+
+ren u:\dev\modem1 u:\dev\ttya
+#ren u:\dev\modem2 u:\dev\ttyb
+#ren u:\dev\serial1 u:\dev\ttyc
+#ren u:\dev\serial2 u:\dev\ttyd
+
+sln f:\usr\bin u:\bin
+sln c:\gnu u:\gnu
+sln f:\usr u:\usr
+sln f:\etc u:\etc
+sln f:\var u:\var
+sln d:\ u:\home
+sln f:\tmp u:\tmp
+
+sln u:\pipe\ttyp.p1 u:\dev\ttyp1
+sln u:\pipe\ttyp.p2 u:\dev\ttyp2
+sln u:\pipe\ttyp.p3 u:\dev\ttyp3
+sln u:\pipe\ttyp.p4 u:\dev\ttyp4
+sln u:\pipe\ttyp.p5 u:\dev\ttyp5
+sln u:\pipe\ttyp.p6 u:\dev\ttyp6
+sln u:\pipe\ttyp.p7 u:\dev\ttyp7
+sln u:\pipe\ttyp.p8 u:\dev\ttyp8
+sln u:\pipe\ttyp.p9 u:\dev\ttyp9
+sln u:\pipe\ttyp.pa u:\dev\ttypa
+sln u:\pipe\ttyp.pb u:\dev\ttypb
+sln u:\pipe\ttyp.pc u:\dev\ttypc
+sln u:\pipe\ttyp.pd u:\dev\ttypd
+sln u:\pipe\ttyp.pe u:\dev\ttype
+sln u:\pipe\ttyp.pf u:\dev\ttypf
+#
+sln u:\pipe\ttyp.q1 u:\dev\ttyq1
+sln u:\pipe\ttyp.q2 u:\dev\ttyq2
+sln u:\pipe\ttyp.q3 u:\dev\ttyq3
+sln u:\pipe\ttyp.q4 u:\dev\ttyq4
+sln u:\pipe\ttyp.q5 u:\dev\ttyq5
+sln u:\pipe\ttyp.q6 u:\dev\ttyq6
+sln u:\pipe\ttyp.q7 u:\dev\ttyq7
+sln u:\pipe\ttyp.q8 u:\dev\ttyq8
+sln u:\pipe\ttyp.q9 u:\dev\ttyq9
+sln u:\pipe\ttyp.qa u:\dev\ttyqa
+sln u:\pipe\ttyp.qb u:\dev\ttyqb
+sln u:\pipe\ttyp.qc u:\dev\ttyqc
+sln u:\pipe\ttyp.qd u:\dev\ttyqd
+sln u:\pipe\ttyp.qe u:\dev\ttyqe
+sln u:\pipe\ttyp.qf u:\dev\ttyqf
+
+setenv HOSTNAME nowhere
+

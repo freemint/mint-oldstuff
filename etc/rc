@@ -1,0 +1,62 @@
+#!/bin/sh
+# This is run at multi-user startup.
+#
+# Edit it to suit your taste.
+#
+# Really, some of this stuff should be in rc.local which should be called
+# from this script.
+#
+# S.R.Usher 29/12/91
+#
+HOME=/; export HOME
+PATH=/bin:/usr/bin:/usr/etc:/usr/lib ; export PATH
+
+if [ -f /etc/single ] ; then
+	rm /etc/single
+	echo "Multiuser startup in progress..."
+else
+	echo "Automatic reboot in progress..."
+fi
+date
+
+rm -f /etc/nologin
+
+sh /etc/rc.local
+
+# Clear the /tmp directory.
+
+echo clearing /tmp
+rm /tmp/* > /dev/null 2>&1
+
+echo -n "standard daemons:"
+
+# Start up the update daemon. (This may be useful if there are any file systems
+# which may need sync()ing in the future. You never know, someone might write
+# one!)
+
+if [ -f /usr/lib/update ] ; then
+	update &
+	echo -n " update"
+fi
+
+if [ -f /etc/cron ] ; then
+#	/etc/cron > /dev/null 2>&1 &
+	echo -n " cron"
+fi
+
+echo "."
+
+echo -n "starting network daemons:"
+
+# Start up the printer daemon.
+
+if [ -f /usr/lib/lpd ] ; then
+	(cd /tmp ; lpd > /dev/null 2>&1 &)
+	echo -n " printer"
+fi
+
+echo "."
+
+date
+
+exit 0

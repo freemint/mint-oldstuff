@@ -1,0 +1,202 @@
+.TH TEST 1
+.SH NAME
+test \- test a logical condition
+.SH SYNOPSIS
+.B test
+.I expression
+[
+.B ]
+]
+.SH DESCRIPTION
+The
+.B test
+program tests a logical condition.  If that condition is true, it exits
+with a value of EXIT_SUCCESS, and with EXIT_FAILURE if the condition is
+false.  In case of an argument error (such as malformed expressions), the
+program returns the exit status 2.  An optional
+.B ]
+at the end of the expression is swallowed.  This makes it easy to install
+test with a link from
+.BR [ ,
+so that certain incompatibly written shell files work.
+A
+.I number
+in the following description is a string of digits, optionally prefixed
+by a minus sign (a plus sign is not allowed).  The character string is
+interpreted as a decimal, signed integer, and internally has the type
+.IR int .
+If the string overflows the range for signed integers, an error occurs.
+.B test
+understands the following expressions:
+.IP str1 = str2
+True if
+.I str1
+and
+.I str2
+are nonempty equal strings
+.IP str1 != str2
+True if
+.I str1
+and
+.I str2
+are nonempty unequal strings
+.IP str1 >= str2
+True if
+.I str1
+and
+.I str2
+are both nonempty strings, and if both are either equal, or if
+.I str1
+comes lexicographically after
+.I str2
+in the machine's native character set ordering
+.IP str1 > str2
+True if
+.I str1
+and
+.I str2
+are both nonempty strings, and if
+.I str1
+comes lexicographically after
+.I str2
+in the machine's native character set ordering
+.IP str1 <= str2
+True if
+.I str1
+and
+.I str2
+are both nonempty strings, and if both are either equal, or if
+.I str1
+comes lexicographically beg#fore
+.I str2
+in the machine's native character set ordering
+.IP str1 < str2
+True if
+.I str1
+and
+.I str2
+are both nonempty strings, and if
+.I str1
+comes lexicographically before
+.I str2
+in the machine's native character set ordering
+.IP num1 \-eq num2
+True if
+.I num1
+and
+.I num2
+are both numbers and are equal
+.IP num1 \-ne num2
+True if
+.I num1
+and
+.I num2
+are both numbers and are unequal
+.IP num1 \-ge num1
+True if
+.I num1
+and
+.I num2
+are both numbers and if
+.I num1
+is greater than or equal to
+.I num2
+.IP num1 \-gt num1
+True if
+.I num1
+and
+.I num2
+are both numbers, and if
+.I num1
+is strictly greater than
+.I num2
+.IP num1 \-le num1
+True if
+.I num1
+and
+.I num2
+are both numbers and if
+.I num1
+is less than or equal to
+.I num2
+.IP num1 \-lt num1
+True if
+.I num1
+and
+.I num2
+are both numbers, and if
+.I num1
+is strictly less than
+.I num2
+.IP \-e file
+True if
+.I file
+exists
+.IP \-f file
+True if
+.I file
+exists and is a regular file
+.IP \-d file
+True if
+.I file
+exists and is a directory
+.IP \-b file
+True if
+.I file
+exists and is a block special file
+.IP \-c file
+True if
+.I file
+exists and is a character special file
+.IP \-l file
+True if
+.I file
+exists and is a symbolic link
+.IP \-F file
+True if
+.I file
+exists and is a fifo
+.IP \-r file
+True if
+.I file
+exists and is readable by the caller
+.IP \-w file
+True if
+.I file
+exists and is writable by the caller
+.IP \-x file
+True if
+.I file
+exists and is executable by the caller
+.SH FILES
+The file
+.IP COPYING
+Tells the copying conditions for this program.
+.SH BUGS
+For the moment, there is no way to make better string comparisons, for
+example, by looking at the locale, or offering options to compare strings
+as case-insensitive etc.
+.PP
+Please mail bug reports to neuhaus@informatik.uni-kl.de, or write to
+me at Stephan Neuhaus, Hilgardring 32, D-6750 Kaiserslautern, Germany.
+.SH AUTHOR
+.B test
+was written by Stephan Neuhaus (neuhaus@informatik.uni-kl.de), and last
+modified on 2 May, 1992.
+.SH COPYRIGHT
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 1, or (at your option)
+any later version.
+.PP
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License (contained in the file COPYING) for 
+more details.
+.PP
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+

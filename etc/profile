@@ -1,0 +1,11 @@
+PATH=/bin:/usr/ucb:/usr/bin:/gnu/bin:/usr/lib:/usr/local/bin
+export PATH
+
+GNULIB=/usr/lib ; export GNULIB
+GNUINC=/usr/include ; export GNUINC
+
+TMP=/tmp ; export TMP
+TEMP=/tmp ; export TEMP
+TMPDIR=/tmp ; export TMPDIR
+
+LSOPTS=C ; export LSOPTS

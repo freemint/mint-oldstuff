@@ -1,0 +1,48 @@
+# This is the ttytab file I use on my TT. As you can see, with the TT you
+# can have up to five interactive terminals without resorting to using the
+# midi port as a serial port.
+#
+# The names of the ports are changed using the mint.cnf file.
+#
+console	"/usr/etc/getty console"	st52		on secure
+ttya	"/usr/etc/getty std.2400"	dialup		off secure	# v:/modem1
+ttyb	"/usr/etc/getty std.1200"	dialup		off secure	# v:/modem2
+ttyc	"/usr/etc/getty std.9600"	dialup		off secure	# v:/serial1
+ttyd	"/usr/etc/getty std.9600"	dialup		off secure	# v:/serial2
+#
+# Psuedo-terminals. MGR uses these, and they will also get used if Dave Gymer
+# ever gets round to doing a TCP/IP server with telnet. (He may also use
+# them instead of tty1 to get full ST keycodes via the serial port.)
+# Note that these are really just links; what they point to doesn't
+# exist until a server process creates a pty.
+#
+ttyp1	none			network	off 		# u:\pipe\ttyp.p1
+ttyp2	none			network	off 		# u:\pipe\ttyp.p2
+ttyp3	none			network	off 		# u:\pipe\ttyp.p3
+ttyp4	none			network	off 		# u:\pipe\ttyp.p4
+ttyp5	none			network	off 		# u:\pipe\ttyp.p5
+ttyp6	none			network	off 		# u:\pipe\ttyp.p6
+ttyp7	none			network	off 		# u:\pipe\ttyp.p7
+ttyp8	none			network	off 		# u:\pipe\ttyp.p8
+ttyp9	none			network	off 		# u:\pipe\ttyp.p9
+ttypa	none			network	off 		# u:\pipe\ttyp.pa
+ttypb	none			network	off 		# u:\pipe\ttyp.pb
+ttypc	none			network	off 		# u:\pipe\ttyp.pc
+ttypd	none			network	off 		# u:\pipe\ttyp.pd
+ttype	none			network	off 		# u:\pipe\ttyp.pe
+ttypf	none			network	off 		# u:\pipe\ttyp.pf
+ttyq1	none			network	off 		# u:\pipe\ttyp.q1
+ttyq2	none			network	off 		# u:\pipe\ttyp.q2
+ttyq3	none			network	off 		# u:\pipe\ttyp.q3
+ttyq4	none			network	off 		# u:\pipe\ttyp.q4
+ttyq5	none			network	off 		# u:\pipe\ttyp.q5
+ttyq6	none			network	off 		# u:\pipe\ttyp.q6
+ttyq7	none			network	off 		# u:\pipe\ttyp.q7
+ttyq8	none			network	off 		# u:\pipe\ttyp.q8
+ttyq9	none			network	off 		# u:\pipe\ttyp.q9
+ttyqa	none			network	off 		# u:\pipe\ttyp.qa
+ttyqb	none			network	off 		# u:\pipe\ttyp.qb
+ttyqc	none			network	off 		# u:\pipe\ttyp.qc
+ttyqd	none			network	off 		# u:\pipe\ttyp.qd
+ttyqe	none			network	off 		# u:\pipe\ttyp.qe
+ttyqf	none			network	off 		# u:\pipe\ttyp.qf

@@ -1,0 +1,12 @@
+#!/bin/sh
+#
+# This is run when the system is booted in single-user mode.
+#
+
+/bin/cat < /dev/null > /etc/single
+
+if [ -f /etc/fsck ] ; then
+	/etc/fsck -q /
+	/etc/fsck -q /usr
+fi
+
