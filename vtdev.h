@@ -105,8 +105,7 @@ typedef struct screen {
 	short	form_width;	/* # bytes/scanline in font data */
 	short	xpixel;
 	char	*fontoff;	/* pointer to font offset table */
-	char	flags;		/* e.g. cursor on/off */
-	char	reserved;
+	short	flags;		/* e.g. cursor on/off */
 	short	ypixel;
 	short	width;		/* length of a screen scan line */
 	short	planes;		/* number of planes on screen */
@@ -114,19 +113,24 @@ typedef struct screen {
 } SCREEN;
 
 /* possible flags for cursor state, etc. */
-#define CURS_FLASH	0x01		/* cursor flashing */
-#define CURS_FSTATE	0x02		/* cursor in flash state */
-#define CURS_ON		0x04		/* cursor on */
-#define FWRAP		0x08		/* wrap cursor at end of line */
-#define FINVERSE	0x10		/* invert text */
-#define FUNDERLINE	0x20		/* EXTENSION: underline text */
-#define CURS_UPD	0x40		/* cursor update flag */
-#define FBOLD		0x80		/* EXTENSION: boldface */
+#define CURS_FLASH	0x0100		/* cursor flashing */
+#define CURS_FSTATE	0x0200		/* cursor in flash state */
+#define CURS_ON		0x0400		/* cursor on */
+#define FWRAP		0x0800		/* wrap cursor at end of line */
+#define FINVERSE	0x1000		/* invert text */
+#define FUNDERLINE	0x2000		/* EXTENSION: underline text */
+#define CURS_UPD	0x4000		/* cursor update flag */
+#define FBOLD		0x8000		/* EXTENSION: boldface */
+#ifdef V_LIGHT
+#define FDIM		0x01		/* EXTENSION: light face */
+#define FITALIC		0x02		/* EXTENSION: italic face */
+#define SKEW		4		/* skew-factor for italic face */
+#endif /* V_LIGHT */
 
 /* possible flags for cursor shape */
-#define CURS_STEADY	0x01		/* flashing off */
-#define CURS_UNDERLINE	0x00		/* underline cursor */
-#define CURS_BLOCK	0x02		/* block cursor */
+#define CS_STEADY	0x01		/* flashing off */
+#define CS_UNDERLINE	0x00		/* underline cursor */
+#define CS_BLOCK	0x02		/* block cursor */
 
 #define base (*((char **)0x44eL))
 
@@ -166,7 +170,7 @@ typedef struct screen {
 #define V_STATE(x) ((x) == v00 ? &v00state : &(x)->v.t.state)
 #define V_FGMASK(x) ((x) == v00 ? fgmask : (x)->v.t.fgmask)
 #define V_BGMASK(x) ((x) == v00 ? bgmask : (x)->v.t.bgmask)
-#define V_CSHAPE(x) ((x) == v00 ? CURS_BLOCK : (x)->v.t.cshape)
+#define V_CSHAPE(x) ((x) == v00 ? CS_BLOCK : (x)->v.t.cshape)
 #define V_USEDPLANES(x) ((x) == v00 ? (x)->planes : (x)->v.t.usedplanes)
 #define V_FGFF(x) ((x) == v00 ? &fgff : &(x)->v.t.fgff)
 #define V_BG00(x) ((x) == v00 ? &bg00 : &(x)->v.t.bg00)
@@ -188,7 +192,11 @@ extern int vcurrent;
 extern long pgrp;
 extern short hardscroll, leaving, os_version;
 extern SCREEN *v00, v0x[], *current;
+#ifndef V_LIGHT
 extern char *chartab[256*2];
+#else
+extern char *chartab[256*4];
+#endif /* V_LIGHT */
 extern long scrnsize;
 extern char *rowoff;
 #ifndef FORCE1PLANE

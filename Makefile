@@ -2,10 +2,14 @@
 
 CC = gcc # edit asm{}s or make them external .s if you try another one...
 
+# experimental light/italic support... might not work on console
+# (unless -DVT00XCON), won't yet work with char cells != 8x8 or 8x16
+DVLIGHT = -DV_LIGHT
+
 # debug:
 #CFLAGS = -g -mshort -O2 -Wall
 #LFLAGS = -g -mshort
-CFLAGS = -mshort -mpcrel -O2 -Wall -fomit-frame-pointer
+CFLAGS = -mshort -mpcrel -O2 -Wall -fomit-frame-pointer $(DVLIGHT)
 LFLAGS = -mshort
 LIBS = -liio16
 

@@ -39,7 +39,11 @@ palette 1 for ttyv1..9.  and it can't do console writes -> implies VT00XCON.
 #define SCNSIZE(v) ( (((long)v->maxy + hardscroll + 2)) * v->linelen )
 
 SCREEN *v00, v0x[N_VT-1];
+#ifndef V_LIGHT
 char *chartab[256*2];
+#else
+char *chartab[256*4];
+#endif /* V_LIGHT */
 short hardscroll;
 long scrnsize;
 char *rowoff;
@@ -212,7 +216,11 @@ setup_chartab(v)
 {
 	int i, j;
 	char *data, *foo;
+#ifndef V_LIGHT
 	static char chardata[256*16*2];
+#else
+	static char chardata[256*16*4];
+#endif /* V_LIGHT */
 
 #ifndef FORCE1PLANE
 	if (v->cheight == 8 && V_USEDPLANES(v) == 2) {
@@ -237,10 +245,37 @@ setup_chartab(v)
 				data += v->form_width;
 			}
 		}
+#ifdef V_LIGHT
+		for (i = 0; i < 256; i++) {
+			chartab[i+0x200] = foo; /* italic */
+			data = v->fontdata + i;
+			for (j = 0; j < v->cheight; j++) {
+				unsigned char d = *data;
+                                int skew = j / SKEW - v->cheight/(2*SKEW);
+
+				d = skew < 0 ? d >> -skew : d << skew;
+				*foo++ = d;
+				data += v->form_width;
+			}
+		}
+		for (i = 0; i < 256; i++) {
+			chartab[i+0x300] = foo; /* bold-italic */
+			data = v->fontdata + i;
+			for (j = 0; j < v->cheight; j++) {
+				unsigned char d = *data;
+                                int skew = j / SKEW - v->cheight/(2*SKEW);
+
+				d = skew < 0 ? d >> -skew : d << skew;
+				d |= d >> 1;
+				*foo++ = d;
+				data += v->form_width;
+			}
+		}
+#endif /* V_LIGHT */
 	} else if ((v->cheight == 16 || v->cheight == 8) &&
 			V_USEDPLANES(v) == 1) {
 		vpaint = paint816m;
-#endif
+#endif /* ndef FORCE1PLANE */
 		foo = &chardata[0];
 		for (i = 0; i < 256; i++) {
 			chartab[i] = foo;
@@ -251,11 +286,41 @@ setup_chartab(v)
 			}
 		}
 		for (i = 0; i < 256; i++) {
+#ifndef V_LIGHT
 			chartab[i+256] = foo;
+#else
+			chartab[i+0x100] = foo;
 			data = v->fontdata + i;
 			for (j = 0; j < v->cheight; j++) {
 				unsigned char d = *data;
 
+				d |= d >> 1;
+				*foo++ = d;
+				data += v->form_width;
+			}
+		}
+		for (i = 0; i < 256; i++) {
+			chartab[i+0x200] = foo; /* italic */
+			data = v->fontdata + i;
+			for (j = 0; j < v->cheight; j++) {
+				unsigned char d = *data;
+                                int skew = j / SKEW - v->cheight/(2*SKEW);
+
+				d = skew < 0 ? d >> -skew : d << skew;
+				*foo++ = d;
+				data += v->form_width;
+			}
+		}
+		for (i = 0; i < 256; i++) {
+			chartab[i+0x300] = foo; /* bold-italic */
+#endif /* V_LIGHT */
+			data = v->fontdata + i;
+			for (j = 0; j < v->cheight; j++) {
+				unsigned char d = *data;
+#ifdef V_LIGHT
+				int skew = j / SKEW - v->cheight/(2*SKEW);
+				d = skew < 0 ? d >> -skew : d << skew;
+#endif /* V_LIGHT */
 				d |= d >> 1;
 				*foo++ = d;
 				data += v->form_width;
@@ -745,7 +810,7 @@ setcshape(v, c)
 	SCREEN *v;
 	int c;
 {
-	if (c & 1) {
+	if (c & CS_STEADY) {
 		v->flags &= ~CURS_FLASH;
 		--c;
 	} else {
@@ -766,6 +831,10 @@ seffect_putch(v, c)
 {
 	v->flags |= ((c & 0x10) ? FINVERSE : 0)|
 			((c & 0x8) ? FUNDERLINE : 0)|
+#ifdef V_LIGHT
+			((c & 0x4) ? FITALIC : 0)|
+			((c & 0x2) ? FDIM : 0)|
+#endif /* V_LIGHT */
 			((c & 0x1) ? FBOLD : 0);
 	*V_STATE(v) = normal_putch;
 }
@@ -778,6 +847,10 @@ ceffect_putch(v, c)
 {
 	v->flags &= ~(((c & 0x10) ? FINVERSE : 0)|
 			((c & 0x8) ? FUNDERLINE : 0)|
+#ifdef V_LIGHT
+			((c & 0x4) ? FITALIC : 0)|
+			((c & 0x2) ? FDIM : 0)|
+#endif /* V_LIGHT */
 			((c & 0x1) ? FBOLD : 0));
 	*V_STATE(v) = normal_putch;
 }

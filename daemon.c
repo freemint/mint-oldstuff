@@ -1,5 +1,5 @@
 /*
- * virtual terminals for MiNT, v0.7 (beta)
+ * virtual terminals for MiNT, v0.8 (beta)
  *
  * ttyv1..9 are fast hardware-scrolling text-terminals, ttyv0 is the
  * original console and may still be used for graphic display and GEM.

@@ -36,7 +36,7 @@ flash(v)
 #ifndef FORCE1PLANE
 	if (vpaint == paint816m) {
 #endif
-		if (V_CSHAPE(v) == CURS_BLOCK) {
+		if (V_CSHAPE(v) == CS_BLOCK) {
 			/* block cursor */
 			*place = ~*place;
 			place += vplanesiz;
@@ -88,7 +88,7 @@ flash(v)
 #ifndef FORCE1PLANE
 	}
 	if (vpaint == paint8c) {
-		if (V_CSHAPE(v) == CURS_BLOCK) {
+		if (V_CSHAPE(v) == CS_BLOCK) {
 			/* block cursor */
 			*place = ~*place;
 			place[2] = ~place[2];
@@ -129,7 +129,7 @@ flash(v)
 	vplanes = V_USEDPLANES(v);
 	vplanes += vplanes;
 
-	if (V_CSHAPE(v) == CURS_BLOCK) {
+	if (V_CSHAPE(v) == CS_BLOCK) {
 		/* block cursor */
 		for (j = v->cheight; j > 0; --j) {
 			char *q = place;
@@ -274,6 +274,10 @@ paint8c(v, c, place)
 	}
 	if (v->flags & FBOLD)
 		c += 0x100;
+#ifdef V_LIGHT
+	if (v->flags & FITALIC)
+		c += 0x200;
+#endif /* V_LIGHT */
 	if (v->fontdata != lastfontdata) {
 		setup_chartab(v);
 		lastfontdata = v->fontdata;
@@ -398,12 +402,19 @@ paint816m(v, c, place)
 	char *place;
 {
 	char *data;
+#ifndef V_LIGHT
 	char d, doinverse, dounderline;
+#else
+	char d, doinverse, dounderline, dodim;
+#endif /* V_LIGHT */
 	long vplanesiz;
 
 	doinverse = (v->flags & FINVERSE) ? 0xff : 0;
 	doinverse ^= (d = V_BGMASK(v)[0]);
 	vplanesiz = v->planesiz;
+#ifdef V_LIGHT
+	dodim = (v->flags & FDIM) ? 0xff : 0;
+#endif /* V_LIGHT */
 
 	if (c == ' ' && !(v->flags & FUNDERLINE)) {
 		d = doinverse;
@@ -411,6 +422,10 @@ paint816m(v, c, place)
 	}
 	if (v->flags & FBOLD)
 		c += 0x100;
+#ifdef V_LIGHT
+	if (v->flags & FITALIC)
+		c += 0x200;
+#endif /* V_LIGHT */
 	if (v->fontdata != lastfontdata) {
 		setup_chartab(v);
 		lastfontdata = v->fontdata;
@@ -418,8 +433,7 @@ paint816m(v, c, place)
 	data = chartab[c];
 	dounderline = (v->flags & FUNDERLINE) ? 0xff : 0;
 
-	if (d == V_FGMASK(v)[0])
-	  {
+	if (d == V_FGMASK(v)[0]) {
 space:
 	    /* fgcol and bgcol are the same -- easy */
 	    *place = d;
@@ -455,8 +469,11 @@ space:
 	    *place = d;
 	    place += vplanesiz;
 	    *place = d;
-	  }
-	else if (!doinverse) {
+#ifndef V_LIGHT
+	} else if (!doinverse) {
+#else
+	} else if (!doinverse && !dodim) {
+#endif /* V_LIGHT */
 		/* line 1 */
 		d = *data++;
 		*place = d;
@@ -540,7 +557,11 @@ space:
 		/* line 16 */
 		d = *data;
 		*place = d | dounderline;
+#ifndef V_LIGHT
 	} else {
+#else
+	} else if (doinverse && !dodim) {
+#endif /* V_LIGHT */
 		/* line 1 */
 		d = ~*data++;
 		*place = d;
@@ -579,7 +600,7 @@ space:
 		/* line 8 */
 		d = ~*data++;
 		if (v->cheight == 8) {
-			*place = d | dounderline;
+			*place = d & ~dounderline;
 			return;
 		}
 		*place = d;
@@ -622,9 +643,180 @@ space:
 		place += vplanesiz;
 
 		/* line 16 */
-		d = ~*data;
-		*place = d | dounderline;
+		d = ~(*data | dounderline);
+		*place = d;
+#ifdef V_LIGHT
+	} else if (!doinverse && dodim) {
+          		/* line 1 */
+		d = *data++ & 0xaa;
+		*place = d;
+		place += vplanesiz;
+
+		/* line 2 */
+		d = *data++ & 0x55;
+		*place = d;
+		place += vplanesiz;
+
+		/* line 3 */
+		d = *data++ & 0xaa;
+		*place = d;
+		place += vplanesiz;
+
+		/* line 4 */
+		d = *data++ & 0x55;
+		*place = d;
+		place += vplanesiz;
+
+		/* line 5 */
+		d = *data++ & 0xaa;
+		*place = d;
+		place += vplanesiz;
+
+		/* line 6 */
+		d = *data++ & 0x55;
+		*place = d;
+		place += vplanesiz;
+
+		/* line 7 */
+		d = *data++ & 0xaa;
+		*place = d;
+		place += vplanesiz;
+
+		/* line 8 */
+		d = *data++ & 0x55;
+		if (v->cheight == 8) {
+			*place = d | (dounderline & 0x55);
+			return;
+		}
+		*place = d;
+
+		place += vplanesiz;
+
+		/* line 9 */
+		d = *data++ & 0xaa;
+		*place = d;
+		place += vplanesiz;
+
+		/* line 10 */
+		d = *data++ & 0x55;
+		*place = d;
+		place += vplanesiz;
+
+		/* line 11 */
+		d = *data++ & 0xaa;
+		*place = d;
+		place += vplanesiz;
+
+		/* line 12 */
+		d = *data++ & 0x55;
+		*place = d;
+		place += vplanesiz;
+
+		/* line 13 */
+		d = *data++ & 0xaa;
+		*place = d;
+		place += vplanesiz;
+
+		/* line 14 */
+		d = *data++ & 0x55;
+		*place = d;
+		place += vplanesiz;
+
+		/* line 15 */
+		d = *data++ & 0xaa;
+		*place = d;
+		place += vplanesiz;
+
+		/* line 16 */
+		d = (*data | dounderline) & 0x55;
+		*place = d;
+	} else {
+          		/* line 1 */
+		d = ~(*data++ & 0xaa);
+		*place = d;
+		place += vplanesiz;
+
+		/* line 2 */
+		d = ~(*data++ & 0x55);
+		*place = d;
+		place += vplanesiz;
+
+		/* line 3 */
+		d = ~(*data++ & 0xaa);
+		*place = d;
+		place += vplanesiz;
+
+		/* line 4 */
+		d = ~(*data++ & 0x55);
+		*place = d;
+		place += vplanesiz;
+
+		/* line 5 */
+		d = ~(*data++ & 0xaa);
+		*place = d;
+		place += vplanesiz;
+
+		/* line 6 */
+		d = ~(*data++ & 0x55);
+		*place = d;
+		place += vplanesiz;
+
+		/* line 7 */
+		d = ~(*data++ & 0xaa);
+		*place = d;
+		place += vplanesiz;
+
+		/* line 8 */
+		d = ~(*data++ & 0x55);
+		if (v->cheight == 8) {
+			*place = d & ~(dounderline & 0x55);
+			return;
+		}
+		*place = d;
+
+		place += vplanesiz;
+
+		/* line 9 */
+		d = ~(*data++ & 0xaa);
+		*place = d;
+		place += vplanesiz;
+
+		/* line 10 */
+		d = ~(*data++ & 0x55);
+		*place = d;
+		place += vplanesiz;
+
+		/* line 11 */
+		d = ~(*data++ & 0xaa);
+		*place = d;
+		place += vplanesiz;
+
+		/* line 12 */
+		d = ~(*data++ & 0x55);
+		*place = d;
+		place += vplanesiz;
+
+		/* line 13 */
+		d = ~(*data++ & 0xaa);
+		*place = d;
+		place += vplanesiz;
+
+		/* line 14 */
+		d = ~(*data++ & 0x55);
+		*place = d;
+		place += vplanesiz;
+
+		/* line 15 */
+		d = ~(*data++ & 0xaa);
+		*place = d;
+		place += vplanesiz;
+
+		/* line 16 */
+		d = ~((*data | dounderline) & 0x55);
+		*place = d;
+#endif /* V_LIGHT */
 	}
+
 }
 
 /*

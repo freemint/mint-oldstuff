@@ -1,5 +1,5 @@
 From nox  Sun Jan 15 19:53:14 1995
-Subject: virtual console(s) (v0.7)
+Subject: virtual console(s) (v0.8)
 From: Juergen Lock <nox@jelal.hb.north.de>
 
 here is something you've all been waiting for... virtual terminals
@@ -8,8 +8,9 @@ for MiNT :-)  now you can...
  use up to 10 shells/whatever without magnifying glasses or 19" screens
  run GEM on the console, top on ttyv1 and gdb' a GEM program from ttyv2...
  send MiNTs debug output to another terminal than the debugged program
- run cu at 19200 bps (or 38400 on modem2) and actually use the speed,
-goodbye crawling GEM terminal emulations...
+ run cu, rlogin-over-ppp, etc. at 19200 bps (or 38400 on modem2)
+and actually use the speed, no more crawling GEM terminal windows
+eating up all your CPU!
  when some stupid program hangs and MiNT is still alive just switch to
 another terminal and send the thing a signal. (ever heared of vp/ix?
 oops, wrong CPU...)
@@ -128,19 +129,27 @@ then less, elvis etc know how to do underline/boldface text and use
 different cursors for (elvis) command/input/replace mode...  stv52c is
 the same for programs that use scancodes instead of escape sequences
 (like the TOS/MiNT elvis before 1.7, with MiNT 1.7 understands both).
-oh and scancodes don't work over serial lines btw...
+oh and scancodes are not portable btw, they cannot work over sockets
+or serial lines which means on hosts you cu' or telnet/rlogin to
+stv52c is useless.  and if you have something that still hasn't heared
+of TERM or termcap yet but is hardcoded for vt100 try running it in
+a `screen' session (-> man screen, you can also install it locally
+on the MiNT box and then do the rlogin/whatever.)
 
  also depending on the video mode lines and columns can differ, if you
-have programs that don't know about TIOCGWINSZ/SIGWINCH adjust the
-numbers after li# and co#, for example on a falcon with VGA screen
-ttyv1..9 have 30 lines -> li#30.  there are also programs that don't
-look in termcap but check environment variables LINES and COLUMNS...
-and there are probably still old ones that only look in linea, they
-will always get the size of the console.  one last special case is for
-those GEM terminal windows accessed as /dev/console instead of thru ptys,
-because of them ioctl TIOCGWINSZ now returns `size unknown' i.e. ws_row
-and ws_col == 0 for ttyv0 (console) if its xconout vector changed since
-startup.  (btw are there more programs besides Gemini that still do this?)
+have programs that don't know about TIOCGWINSZ/SIGWINCH, (or hosts that
+don't i.e. *sigh* SYSV :) adjust the numbers after li# and co#, for
+example on a falcon with VGA screen ttyv1..9 have 30 lines -> li#30.
+there are also programs that don't look in termcap but check environment
+variables LINES and COLUMNS (also on SYSV...?)  and there are probably
+still old TOS binaries around that only look in linea, they will always
+get the size of the console. (and usually be CPU hogs too because of
+TOS polling and single-byte IO so thats not the only reason to get
+rid of them.) one last special case is for those GEM terminal windows
+accessed as /dev/console instead of thru ptys, because of them ioctl
+TIOCGWINSZ now returns `size unknown' i.e. ws_row and ws_col == 0
+for ttyv0 (console) if its xconout vector changed since startup.
+(does Gemini know ptys now?  some time ago it didn't...)
 
  to switch between terminals just hit alt-fkey, f10 is the console.  you
 might have to hold down the alt key a little longer sometimes until the
@@ -169,7 +178,7 @@ the daemon update that as well define TGETTYUTMP also.  see Makefile...
 2. loadable fonts.  there are some new ioctls to load char bitmaps
 and keyboard translations for chars >= 0x80, and there is a small
 example program that uses these to load raw bitmap files or monospaced
-GDOS (bitmap) fonts of the `right' size.  run ttyvfont --h for a
+GDOS (pixel) fonts of the `right' size.  run ttyvfont --h for a
 help screen... (and improve it if you like, send me the diffs.)
 
 3. and now for something completely different...
@@ -210,10 +219,10 @@ still GEM should really catch SIGHUP etc. and do a clean exit...
 (hey you can even shut down a mac cleanly, or look at X...)
 
  and thats still not it.  said multitos beta no longer polls everything
-but instead it has a race condition that now makes short evnt_timer
-calls often `hang' for > 3 min, especially with MiNT >1.08...
-if this hits you the easiest cure is to get the latest MH-MiNT 1.12,
-it has a kludge in select() that hacks around this GEM bug itself.
+but instead it has a race condition that now makes short evnt_timer calls
+often `hang' for > 3 min, especially with MiNT >1.08...  if this hits you
+the easiest cure is to get the latest MH-MiNT 1.12 (aka FreeMiNT by now),
+it has a kludge in select() that hacks around this GEM bug in the kernel.
 (what your still waiting for a new multitos release from atari!?
 forget it!)  and the built-in GEM in at least TOS 1.(0)4 sometimes
 apparently `forgets' to initialize pointers in (M)allocated memory i.e.

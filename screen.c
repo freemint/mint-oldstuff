@@ -403,11 +403,17 @@ void showscreen (vt, v, vbase, save)
 			dbaselow = s->vbaselow;
 			linewidth = s->vlinewidth;
 			hscroll = s->vhscroll;
-			shiftmd = s->mode;
-			color0 = s->colours[0];
-			color1 = s->colours[1];
-			color2 = s->colours[2];
-			color3 = s->colours[3];
+			if (s->mode != rez_vt) {
+				shiftmd = s->mode;
+				color0 = s->colours[0];
+				color1 = s->colours[1];
+				color2 = s->colours[2];
+				color3 = s->colours[3];
+			}
+#ifdef VTONEPLANE
+			else if (rez_vt < 2)
+				color1 = s->colours[1];
+#endif
 			intson (sr);
 			s->saved = 0;
 		}
