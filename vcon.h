@@ -1,5 +1,3 @@
-#include "filesys.h"
-
 #ifdef __GNUC__
 #define EXITING volatile	/* function never returns */
 #else
@@ -10,7 +8,11 @@
 #ifdef __TURBOC__
 #define ARGS_ON_STACK cdecl
 #else
+#ifdef __CDECL
+#define ARGS_ON_STACK __CDECL
+#else
 #define ARGS_ON_STACK
+#endif
 #endif
 
 /* define to indicate unused variables */
@@ -19,6 +21,21 @@
 #else
 #define UNUSED(x)
 #endif
+
+#ifndef P_
+# ifdef __STDC__
+#  define P_(x) x
+# else
+#  define P_(x) ()
+# endif
+#endif
+
+#define ushort	unsigned short
+typedef long (*Func)();
+
+#define IOREC_T _IOREC
+
+#include "filesys.h"
 
 #define CTRL(x) ((x) & 0x1f)
 #ifndef T_NOFLSH

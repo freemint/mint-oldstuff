@@ -5,19 +5,19 @@ Some parts of this code are:
 Copyright 1992,1993 Eric R. Smith and Atari Corporation.
 Used by permission.
 
-compile with -DVT00XCON to make vt00 (the `new' console) output thru
+compile with -DVT00XCON to make ttyv0 (the `new' console) output thru
 xconout[2] (for GEM programs that don't know about ptys and hook up
-their terminal window there...), otherwise vt00 is always fast
+their terminal window there...), otherwise ttyv0 is always fast
 full-screen like the other terminals only it doesn't hardware scroll.
 
 compile with -DVMODE to allow (hardware dependent) different video modes
-for vt01..9 and console, see screen.c for details.
+for ttyv1..9 and console, see screen.c for details.
 
 use -DFORCE1PLANE to compile only code for one plane (i.e. no colour)
 and characters 8 or 16 bytes high, this is fastest because it can leave
 out a few checks and inline the paint code.  of course that needs either
 a monochrome screen or screen.c (showscreen) has to know how to set/save
-palette 1 for vt01..9.  and it can't do console writes -> implies VT00XCON.
+palette 1 for ttyv1..9.  and it can't do console writes -> implies VT00XCON.
 */
 
 #include <stddef.h>
@@ -73,7 +73,9 @@ static void setcurs P_((SCREEN *, int));
 static void setcshape P_((SCREEN *, int));
 static void putesc P_((SCREEN *, int));
 static void escy1_putch P_((SCREEN *, int));
-#ifndef VT00XCON
+#ifdef VT00XCON
+static long xconout_start;
+#else
 int fgmask[MAX_PLANES], bgmask[MAX_PLANES], fgff, bg00;
 static Vfunc v00state;
 INLINE static void put_ch00 P_((SCREEN *, int));
@@ -87,7 +89,7 @@ xflash()
 {
 	SCREEN *v = VT_SCREEN(vcurrent);
 
-	/* vt00's cursor is handled by TOS... */
+	/* ttyv0's cursor is handled by TOS... */
 	if (!vcurrent || v->hidecnt)
 		return;
 	if ((CURS_FLASH|CURS_ON) == (v->flags & (CURS_FLASH|CURS_ON))) {
@@ -159,7 +161,7 @@ curs_on(v)
 })
 #endif
 
-/* init vt0[1-9] SCREEN struct */
+/* init ttyv[1-9] SCREEN struct */
 
 void
 init_screen(v, initv, vbase, rowlist, on)
@@ -1143,19 +1145,19 @@ screen_open(f)
 	FILEPTR *f;
 {
 	int fd, vt = f->fc.aux;
-	char name[] = "u:\\pipe\\q$vt00";
+	char name[] = "u:\\pipe\\q$ttyv0";
 
 	if (!rowoff) {
 #ifdef VT00XCON
-		/* if vt00 should write thru xconout be sure its there :) */
-		if (!xconout[CONDEV])
-			return -EINTERNAL;
+		/* TOS <= 1.(0)0 didn't have xconout */
+		if (os_version > 0x100)
+			xconout_start = xconout[CONDEV];
 #endif
 		if ((fd = init()))
 			/* pass error... */
 			return fd;
 	} else if (!ttys[0].tt.use_cnt || leaving)
-		/* if we're init'ed already and vt00 is closed that means
+		/* if we're init'ed already and ttyv0 is closed that means
 		   we're uninistalling... */
 		return -EACCESS;
 	if (!((struct tty *)f->devinfo)->use_cnt) {
@@ -1172,7 +1174,7 @@ screen_open(f)
 				v->v.t.on = V_USED;
 		}
 		/* is there a better way??? */
-		name[sizeof "u:\\pipe\\q$vt0"-1] = vt+'0';
+		name[sizeof "u:\\pipe\\q$ttyv"-1] = vt+'0';
 		if ((fd = FOPEN (name, O_RDONLY|O_GLOBAL)) < 0)
 			return fd;
 		qfd[vt] = fd;
@@ -1196,7 +1198,7 @@ screen_close(f, pid)
 		/* close pipe */
 		FCLOSE (qfd[vt]);
 
-		/* last close on vt00 means uninstall... */
+		/* last close on ttyv0 means uninstall... */
 		if (!vt)
 			deinit();
 		/* otherwise it means free screen memory */
@@ -1226,6 +1228,9 @@ screen_write(f, buf, bytes)
 	long ret = 0;
 	int c;
 	long tick;
+	static long lastw;
+	static int lastv;
+	extern int __mint;
 
 	/* tty_write is calling us with no more than one line or 128
 	   chars at a time but still never(?) allows task-switches
@@ -1259,9 +1264,13 @@ screen_write(f, buf, bytes)
 		curs_on(v);
 		v->flags &= ~CURS_UPD;
 	} else {
-		while (bytes > 0) {
+		if (xconout_start) while (bytes > 0) {
 			c = (int) *r++;
 			(void) xcon_exec (xconout[CONDEV], (unsigned char) c);
+			bytes -= 4; ret+= 4;
+		} else while (bytes > 0) {
+			c = (int) *r++;
+			(void) bconout(CONDEV, (unsigned char) c);
 			bytes -= 4; ret+= 4;
 		}
 	}
@@ -1298,6 +1307,14 @@ screen_write(f, buf, bytes)
 	if (tick != _hz_200 && !(tick & 3))
 		yield();
 #endif
+	if (ret > 0 && (vt != lastv || (_hz_200 - lastw) >= 100) &&
+	    __mint > 0x109) {
+		struct bios_file *b = (struct bios_file *)f->fc.index;
+		lastw = _hz_200;
+		lastv = vt;
+		b->xattr.atime = b->xattr.mtime = TGETTIME();
+		b->xattr.adate = b->xattr.mdate = TGETDATE();
+	}
 	return ret;
 }
 
@@ -1306,10 +1323,18 @@ screen_read(f, buf, bytes)
 	FILEPTR *f; char *buf; long bytes;
 {
 	int vt = f->fc.aux;
+	long ret;
+	extern int __mint;
 
 	if ((f->flags & O_NDELAY) != q_fl[vt])
 		FCNTL (qfd[vt], (long)(q_fl[vt] = f->flags&O_NDELAY), F_SETFL);
-	return FREAD (qfd[vt], bytes, buf);
+	ret = FREAD (qfd[vt], bytes, buf);
+	if (ret > 0 && __mint > 0x109) {
+		struct bios_file *b = (struct bios_file *)f->fc.index;
+		b->xattr.atime = TGETTIME();
+		b->xattr.adate = TGETDATE();
+	}
+	return ret;
 }
 
 static long ARGS_ON_STACK 
@@ -1350,6 +1375,14 @@ screen_ioctl(f, mode, buf)
 		w = (struct winsize *)buf;
 		w->ws_row = v->maxy+1;
 		w->ws_col = v->maxx+1;
+#ifdef VT00XCON
+	/* another compatibility hack for those `never heared of ptys'
+	   GEM programs:  if the vector changed since we started the
+	   console size is `unknown'...
+	*/
+		if (!vt && xconout[CONDEV] != xconout_start)
+			w->ws_row = w->ws_col = 0;
+#endif
 	}
 #ifdef VT00XCON
 	else if (vt && mode >= TCURSOFF && mode <= TCURSGRATE)
@@ -1409,7 +1442,9 @@ screen_ioctl(f, mode, buf)
 		case VCTLWSEL:
 			if (ttys[(long) buf].tt.rsel) {
 				WAKESELECT(ttys[(long) buf].tt.rsel);
+#if 0
 				ttys[(long) buf].tt.rsel = 0;
+#endif
 			}
 		}
 	} else
@@ -1424,6 +1459,7 @@ screen_select(f, p, mode)
 {
 	struct tty *tty = (struct tty *)f->devinfo;
 	int vt = f->fc.aux;
+	extern int __mint;
 
 	if (mode == O_RDONLY) {
 		if (FINSTAT (qfd[vt])) {
@@ -1433,6 +1469,8 @@ screen_select(f, p, mode)
 		/* avoid collisions with other processes */
 			if (!tty->rsel)
 				tty->rsel = p;
+			else if (__mint > 0x109)
+				return 2;
 		}
 		return 0;
 	} else if (mode == O_WRONLY) {

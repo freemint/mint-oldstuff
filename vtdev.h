@@ -1,4 +1,6 @@
 /* kernel calls... */
+#define TGETDATE	(*kernel->dos_tab[0x2a])
+#define TGETTIME	(*kernel->dos_tab[0x2c])
 #define FOPEN	(*kernel->dos_tab[0x3d])
 #define FCLOSE	(*kernel->dos_tab[0x3e])
 #define FREAD	(*kernel->dos_tab[0x3f])
@@ -26,7 +28,7 @@
 /* should be equivalent... atleast for mintlib. */
 #define quickmove memmove
 #define zero bzero
-/* only possible because main open()s /dev/vt00 that calls this. */
+/* only possible because main open()s /dev/ttyv0 that calls this. */
 #define kcore(x) MXALLOC((long)(x),0)
 /* should this do something? */
 #define checkkeys() (0)
@@ -68,7 +70,7 @@ typedef struct screen {
 	short	msavestat;
 	union {
 		long	msavearea[64];
-/* additional stuff, NOT for vt00! */
+/* additional stuff, NOT for ttyv0! */
 		struct {
 			Vfunc	state;
 			short	vescy1;
@@ -179,7 +181,7 @@ extern DEVDRV vcon_device;
 extern struct dev_descr devinfo[];
 extern int vcurrent;
 extern long pgrp;
-extern short hardscroll, leaving;
+extern short hardscroll, leaving, os_version;
 extern SCREEN *v00, v0x[], *current;
 extern char *chartab[256*2];
 extern long scrnsize;

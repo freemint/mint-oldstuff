@@ -1,7 +1,7 @@
 /*
 hardware depandent physical screen and video mode stuff
 
-virtual terminals vt01..vt09 are text-only so using big hi-res colour
+virtual terminals ttyv1..ttyv9 are text-only so using big hi-res colour
 screens for them (TT/falcon) only wastes memory and slows things down.
 if possible use ST modes independent from whats on console...  also
 to still have 80 columns when the console is running low res.
@@ -17,11 +17,12 @@ thanx for the falcon parts goes to Georg Acher
 (more things i can't test are hardware additions like Overscan and
 graphics cards, so if you get that working...)
 
-compile with -DVTONEPLANE to use no colours on vt01..9 (faster)
+compile with -DVTONEPLANE to use no colours on ttyv1..9 (faster)
 */
 
 #include <stdio.h>
 #include <mintbind.h>
+#include <falcon.h>
 #include "vcon.h"
 #include "vtdev.h"
 
@@ -179,10 +180,10 @@ short waiteoscreen()
 }
 
 /*
- * getvtmode (v00): find out the video mode to use for vt0[1-9], return
+ * getvtmode (v00): find out the video mode to use for ttyv[1-9], return
  * a SCREEN struct for it.  this gets called once at initialization
  * time before GEM is up (usually) i.e. it could mess with the consoles
- * video mode if it must.  v00 is console (vt00, readonly).
+ * video mode if it must.  v00 is console (ttyv0, readonly).
  * may use v0x[0], may allocate screen buffer itself (kcore, m_xalloc;
  * then adjust hardscroll and put pointer in returned struct).
  * note this is just initialisation, the real switching happens in
@@ -267,14 +268,20 @@ SCREEN *getvtmode (v00)
 		/* vga screen, use st-hi */
 		goto st_hi;
 	case VDO_FALCON:
-		/* should this check for screen type?  */
-		/* and could init f030col_white, f030col_black from whats on
-		   console now (if people prefer white on black etc.)  */
-		rez_vt = 2;
-		maxy = 29; /* VGA 640*480*2 */
-		goto st_30;
+		switch (Montype ()) {
+		/* WANTED:  video modes for the other screen types... */
+		case VGAcolor:
+			/* and could init f030col_white, f030col_black from
+			   whats on console now (if people prefer white on
+			   black etc.)  */
+			rez_vt = 2;
+			maxy = 29; /* VGA 640*480*2 */
+			goto st_30;
+		}
+		/*FALLTHRU*/
 	default:
-		/* dont know how to change video modes, use current one */
+		/* dont know how to change modes without affecting GEM,
+		   use current one */
 		return v00;
 	}
 }
@@ -310,7 +317,7 @@ void showscreen (vt, v, vbase, save)
 
 	if (rez_vt < 0) {
 		/* unknown hardware or can't change mode -> only set address */
-		Setscreen (-1l, vbase, -1l);
+		Setscreen (-1l, vbase, -1, -1);
 		return;
 	}
 	switch (vdo) {

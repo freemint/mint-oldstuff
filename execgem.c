@@ -1,12 +1,12 @@
 /* execgem -- exec `old' GEM (exec_os) or a gem.sys (-DINITPRG)
    make sure we're on console, zero its pgroup to reduce GEM SIGTTIN/OU
    problems (don't ask), exec.  INITPRG can also be a script so you
-   can create an account `gem' in /etc/passwd if you want with this
-   as loginshell and put setup things in the script. (last line execs
-   the real gem.)
+   can create one or more logins in /etc/passwd for different GEM
+   configurations, give it this as loginshell, and put setup things
+   in the script. (last line execs the real GEM.)
 
-   BUGS: still no way to leave GEM & free all its memory etc. other
-   than reboot. :-(  if someone manages to shut down GEM and later
+   BUGS: still no way to leave GEM & free all its memory and vectors etc.
+   other than reboot. :-(  if someone manages to shut down GEM and later
    restart it without spectacular crashes and losing memory _please_
    tell us how...
 */
@@ -74,7 +74,8 @@ main(argc, argv)
 
 		if (Fcntl(-1, &pgrp, TIOCGPGRP) ||
 		    Fcntl(-1, &sb, FSTAT) ||
-		    (Fxattr(0, "u:\\dev\\vt00", &st) &&
+		    (Fxattr(0, "u:\\dev\\ttyv0", &st) &&
+			Fxattr(0, "u:\\dev\\vt00", &st) &&
 			Fxattr(0, "u:\\dev\\console", &st)) ||
 		    ((st.st_dev != sb.st_dev || st.st_ino != sb.st_ino) &&
 		     (Fxattr(0, "u:\\dev\\fasttext", &st) ||
@@ -102,7 +103,7 @@ main(argc, argv)
 			/* not Pexec so init_prg gets ARGV and can be a script.
 			*/
 			execl (init_prg, init_prg, (char *)0);
-			if (errno == ENOEXEC || errno == ENOENT)
+			if (errno == ENOEXEC)
 				execl ("/bin/sh", "/bin/sh", init_prg, (char *)0);
 			r = errno;
 		} else {

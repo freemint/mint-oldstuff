@@ -22,7 +22,7 @@ to put it in a mint.cnf:  (otherwise it can be called from anywhere.)
 # first start virtual consoles... (of course other ttys should also work :)
 exec u:\usr\etc\vcons1d
 ren u:\dev\console u:\dev\con0
-ren u:\dev\vt00 u:\dev\console
+ren u:\dev\ttyv0 u:\dev\console
 CON=u:\dev\console
 # turn on cursor (make the ^[ one esc char)
 echo ^[e
@@ -38,11 +38,11 @@ cd u:\home\nox
 # shell when i need it)
 INIT=u:\bin\ksh.ttp -L
 
-# everything set, now put a top on vt01...
-exec u:\local\bin\runtt.ttp -t vt01 top
-# and 2 (more) shells on vt02 and 3
-exec u:\local\bin\runtt.ttp -t vt02
-exec u:\local\bin\runtt.ttp -t vt03
+# everything set, now put a top on ttyv1...
+exec u:\local\bin\runtt.ttp -t ttyv1 top
+# and 2 (more) shells on ttyv2 and 3
+exec u:\local\bin\runtt.ttp -t ttyv2
+exec u:\local\bin\runtt.ttp -t ttyv3
 # maybe add a sleep here so the shells have time to come up before GEM.
 
 */

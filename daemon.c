@@ -1,23 +1,22 @@
 /*
- * virtual terminals for MiNT, v0.3 (still alpha...)
+ * virtual terminals for MiNT, v0.5 (beta)
  *
- * vt01..9 are fast hardware-scrolling text-terminals, vt00 is the
- * original console and can still be used for GEM. (i hope :)
- * to change terminals hit alt-function key (f1 == vt01... f10 == vt00),
+ * ttyv1..9 are fast hardware-scrolling text-terminals, ttyv0 is the
+ * original console and may still be used for graphic display and GEM.
+ * to select terminals hit alt-function key (f1 == ttyv1... f10 == ttyv0),
  * alt-undo kills a terminals key buffer. (useful when your auto-repeat
  * is faster than a program processes input, etc)
  *
- * how it works:  each open vt.. device has a screen buffer and input pipe.
+ * how it works:  each open ttyv? device has a screen buffer and input pipe.
  * keyboard input is read and scanned for control and alt-f keys by a
- * daemon (in main()) that changes screens and sends input and signals to
- * the correct processes.
- * vt00 uses the original screen memory, vt01..9 share one bigger screen
- * for display and store the other screens contents in line buffers
- * so they can be `hardware-scrolled' without taking extra memory.
- * (just move pointers around.. line offsets actually)  closed `stored'
- * terminals don't take up screen memory.
+ * daemon (in main()) that changes screens and sends input and signals
+ * to the ttys processes.  ttyv0 uses the original screen memory,
+ * ttyv1..9 use one double-length screen in a `simple' video mode for
+ * fast display where possible and store the other ttys screens in line
+ * buffers that can be `hardware-scrolled' without taking double memory.
+ * unused `stored' terminals take up no screen memory.
  *
- * send bugs & comments to:  Juergen Lock <nox@jelal.north.de>
+ * Comments-To: Juergen Lock <nox@jelal.north.de>
  */
 
 #include <osbind.h>
@@ -47,16 +46,16 @@ long _stksize = 0x4000;
 struct kerinfo *kernel;
 
 struct dev_descr devinfo[] = {
-	{&vcon_device, 0, O_TTY, &ttys[0].tt, {0L, 0L, 0L, 0L}},  /* vt00 (console) */
-	{&vcon_device, 1, O_TTY, &ttys[1].tt, {0L, 0L, 0L, 0L}},  /* vt01 */
-	{&vcon_device, 2, O_TTY, &ttys[2].tt, {0L, 0L, 0L, 0L}},  /* vt02 */
-	{&vcon_device, 3, O_TTY, &ttys[3].tt, {0L, 0L, 0L, 0L}},  /* vt03 */
-	{&vcon_device, 4, O_TTY, &ttys[4].tt, {0L, 0L, 0L, 0L}},  /* vt04 */
-	{&vcon_device, 5, O_TTY, &ttys[5].tt, {0L, 0L, 0L, 0L}},  /* vt05 */
-	{&vcon_device, 6, O_TTY, &ttys[6].tt, {0L, 0L, 0L, 0L}},  /* vt06 */
-	{&vcon_device, 7, O_TTY, &ttys[7].tt, {0L, 0L, 0L, 0L}},  /* vt07 */
-	{&vcon_device, 8, O_TTY, &ttys[8].tt, {0L, 0L, 0L, 0L}},  /* vt08 */
-	{&vcon_device, 9, O_TTY, &ttys[9].tt, {0L, 0L, 0L, 0L}}   /* vt09 */
+	{&vcon_device, 0, O_TTY, &ttys[0].tt, {0L, 0L, 0L, 0L}},  /* ttyv0 (console) */
+	{&vcon_device, 1, O_TTY, &ttys[1].tt, {0L, 0L, 0L, 0L}},  /* ttyv1 */
+	{&vcon_device, 2, O_TTY, &ttys[2].tt, {0L, 0L, 0L, 0L}},  /* ttyv2 */
+	{&vcon_device, 3, O_TTY, &ttys[3].tt, {0L, 0L, 0L, 0L}},  /* ttyv3 */
+	{&vcon_device, 4, O_TTY, &ttys[4].tt, {0L, 0L, 0L, 0L}},  /* ttyv4 */
+	{&vcon_device, 5, O_TTY, &ttys[5].tt, {0L, 0L, 0L, 0L}},  /* ttyv5 */
+	{&vcon_device, 6, O_TTY, &ttys[6].tt, {0L, 0L, 0L, 0L}},  /* ttyv6 */
+	{&vcon_device, 7, O_TTY, &ttys[7].tt, {0L, 0L, 0L, 0L}},  /* ttyv7 */
+	{&vcon_device, 8, O_TTY, &ttys[8].tt, {0L, 0L, 0L, 0L}},  /* ttyv8 */
+	{&vcon_device, 9, O_TTY, &ttys[9].tt, {0L, 0L, 0L, 0L}}   /* ttyv9 */
 };
 
 #define MAX_VT ((sizeof devinfo)/sizeof (struct dev_descr))
@@ -65,7 +64,7 @@ struct ttyv ttys[MAX_VT];
 
 struct sgttyb con;
 int conflags;
-short hardscroll = -1;
+short hardscroll = -1, os_version;
 struct tchars con_tc, tc0;
 struct ltchars con_ltc, ltc0;
 
@@ -92,13 +91,13 @@ void con_sane()
 	if (cfd >= 0) {
 		/* try to uninstall gracefully... */
 		int opencnt = 0;
-		char *vt00name, *oldcname, *s;
+		char *ttyv0name, *oldcname, *s;
 		long vpgrp;
 
-		/* /dev/vt00 might be renamed /dev/console... */
-		if ((vt00name=ttyname(cfd)) && (s = strrchr (vt00name, '/')) &&
+		/* /dev/ttyv0 might be renamed /dev/console... */
+		if ((ttyv0name=ttyname(cfd)) && (s = strrchr (ttyv0name, '/')) &&
 		    !strcmp (s, "/console"))
-			rename (vt00name, "u:/dev/vt00");
+			rename (ttyv0name, "u:/dev/ttyv0");
 		/* move original console device in place */
 		if ((oldcname=ttyname(0)) && (s = strrchr (oldcname, '/')) &&
 		    strcmp (s, "/console"))
@@ -134,9 +133,9 @@ void con_sane()
 	}
 	/* unlink devices */
 	for (i = 0; i < MAX_VT; ++i) {
-		char name[] = "u:\\dev\\vt00";
+		char name[] = "u:\\dev\\ttyv0";
 
-		name[sizeof "u:\\dev\\vt0"-1] = i+'0';
+		name[sizeof "u:\\dev\\ttyv"-1] = i+'0';
 		Fdelete (name);
 	}
 
@@ -205,13 +204,14 @@ char *getpkbshift()
 	/* get OS header */
 	(void) Supexec(getsyshd);
 	/* TOS 1.(0)2 or newer has it in the header */
-	if (syshdr->os_version > 0x100)
+	if ((os_version = syshdr->os_version) > 0x100)
 		return (char *)syshdr->pkbshift;
 	else
 	/* TOS 1.0 */
 		return (char *) 0x0e1bL;
 }
 
+#ifndef HAVE_REAL_FORK
 /* on MiNT fork and vfork both block until the child does either exec or
    dies.  only tfork doesn't block but it works like a subroutine call... */
 static jmp_buf	tforkj;
@@ -225,6 +225,7 @@ int arg;
 	longjmp (tforkj, 1);
 	/*NOTREACHED*/
 }
+#endif
 
 /* queue up characters for a terminal */
 
@@ -260,13 +261,29 @@ main()
 	char *s;
 	volatile char *pkbshift = getpkbshift();
 	long cbuf[0x80], *bufp;
+	extern int __mint;
 	int open();
 
+#if 0
 	/* sanity check */
 	if (!(s = ttyname (0)) || (!(s = strrchr (s, '/'))) ||
 	    strcmp (s, "/console")) {
 		Cconws ("Sorry this is fast not `clean' software :)  console only...\r\n");
 		exit (1);
+	}
+#endif
+	if (__mint < 9) {
+		Cconws ("Sorry MiNT kernel version too old, need O_NDELAY...\r\n");
+		exit (1);
+	}
+	/* open console ourselves to be sure noone clears our O_NDELAY flag */
+	if ((i = open ("/dev/console", O_RDWR|O_NDELAY)) < 0 ||
+	    dup2 (i, 0) < 0 || dup2 (i, 1) < 0 || dup2 (i, 2) < 0) {
+		Cconws ("Huh?  unable to open /dev/console...\r\n");
+		exit (1);
+	}
+	for (i = 3; i < 32; ++i) {
+		close (i);
 	}
 
 	/* stdin RAW, catch signals...  */
@@ -286,9 +303,9 @@ main()
 
 	umask (022);
 	for (i = 0; i < MAX_VT; ++i) {
-		char name[] = "u:\\pipe\\q$vt00";
+		char name[] = "u:\\pipe\\q$ttyv0";
 
-		name[sizeof "u:\\pipe\\q$vt0"-1] = i+'0';
+		name[sizeof "u:\\pipe\\q$ttyv"-1] = i+'0';
 		if ((pfd[i] = Fcreate (name, FA_RDONLY|FA_CHANGED)) < 0) {
 			con_sane();
 			Cconws ("Huh?  unable to create pipe...\r\n");
@@ -300,9 +317,9 @@ main()
 		Fcntl (pfd[i], 0, F_SETFD);
 	}
 	for (i = 0; i < MAX_VT; ++i) {
-		char name[] = "u:\\dev\\vt00";
+		char name[] = "u:\\dev\\ttyv0";
 
-		name[sizeof "u:\\dev\\vt0"-1] = i+'0';
+		name[sizeof "u:\\dev\\ttyv"-1] = i+'0';
 		kernel = (struct kerinfo *)Dcntl(DEV_INSTALL, name, devinfo+i);
 		if (!kernel || ((long)kernel) == -32) {
 			con_sane();
@@ -311,26 +328,30 @@ main()
 		}
 	}
 
-	if ((cfd = open ("u:\\dev\\vt00", O_NOCTTY|O_RDWR)) < 0) {
+	if ((cfd = open ("u:\\dev\\ttyv0", O_NOCTTY|O_RDWR)) < 0) {
 		con_sane();
 		Cconws ("Help!!  open new console device failed.\r\n");
 		exit (1);
 	}
 #if 0
-	/* better put this in rc.local... (or mint.cnf) */
+	/* better do this in rc.local... (or mint.cnf) */
 	Frename (0, "u:\\dev\\console", "u:\\dev\\con00");
-	Frename (0, "u:\\dev\\vt00", "u:\\dev\\console");
+	Frename (0, "u:\\dev\\ttyv0", "u:\\dev\\console");
 #endif
 
+#ifndef HAVE_REAL_FORK
 	/* hack until MiNT gets a real nonblocking fork...  one day :)
 	*/
 	if (!setjmp(tforkj) && tfork (in_tfork, 0l) >= 0)
 		_exit (0);
+#else
+	if (fork())
+		_exit (0);
+#endif
 
-	/* ok parent continues, has to close old /dev/console now... */
+	/* ok parent continues, should not read old /dev/console anymore now */
 	pgrp = setpgrp(/*pgrp, pgrp*/);
 	Fcntl(0, &pgrp, TIOCSPGRP);
-	Fcntl(0, (void *) O_NDELAY, F_SETFL);
 	/* hmm part 2: tfork resets signals too... */
 	signal(SIGHUP, trap);
 	signal(SIGTERM, trap);
@@ -346,7 +367,7 @@ main()
 	*/
 	bufp = cbuf;
 	for (;;) {
-		char name[] = "u:\\pipe\\q$vt00";
+		char name[] = "u:\\pipe\\q$ttyv0";
 		int fd = pfd[vcurrent], scan;
 		char cshift;
 		unsigned long l;
@@ -400,7 +421,7 @@ main()
 			int xfd;	/* ALT-something */
 
 			case 0x61:	/* ALT-UNDO: flush pipe if !empty */
-				name[sizeof "u:\\pipe\\q$vt0"-1] = vcurrent+'0';
+				name[sizeof "u:\\pipe\\q$ttyv"-1] = vcurrent+'0';
 				if ((xfd = Fopen (name, O_RDONLY)) >= 0
 				    && Finstat (xfd) > 0) {
 					Fcntl (xfd, (char *) 0, TIOCFLUSH);
@@ -412,18 +433,18 @@ main()
 					continue;
 				}
 				break;
-			case 0x3b:	/* ALT-F1: vt01 */
-			case 0x3c:	/* ALT-F2: vt02 */
+			case 0x3b:	/* ALT-F1: ttyv1 */
+			case 0x3c:	/* ALT-F2: ttyv2 */
 			case 0x3d:	/* .	*/
 			case 0x3e:	/* .	*/
 			case 0x3f:	/* .	*/
 			case 0x40:
 			case 0x41:
 			case 0x42:
-			case 0x43:	/* ALT-F9:  vt09 */
+			case 0x43:	/* ALT-F9:  ttyv9 */
 				scan += 10;
 				/*FALLTHRU*/
-			case 0x44:	/* ALT-F10: vt00 */
+			case 0x44:	/* ALT-F10: ttyv0 */
 				if ((scan -= 0x44) < MAX_VT) {
 					csend (vcurrent, fd, cbuf, bufp);
 					bufp = cbuf;

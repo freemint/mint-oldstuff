@@ -9,7 +9,7 @@ CFLAGS = -mshort -mpcrel -O2 -Wall -fomit-frame-pointer
 LFLAGS = -mshort
 LIBS = -liio16
 
-all: execgem execmtos runtt vconx
+all: execgem execmtos runtt select0.TOS vconsd
 
 execgem: execgem.c
 	$(CC) $(CFLAGS) $< -o execgem $(LIBS)
@@ -20,28 +20,31 @@ execmtos: execgem.c
 runtt: runtt.c
 	$(CC) $(CFLAGS) $< -o runtt $(LIBS)
 
-vconsd: vcon.o vtdevxd.o paintx.o screen.o
-	$(CC) -G $(LFLAGS) vcon.o vtdevxd.o paintx.o screen.o -ovconsd
+select0.TOS: select0.c
+	$(CC) $(CFLAGS) $< -o select0.TOS
+
+vconsd: daemon.o vtdevxd.o paintx.o screen.o
+	$(CC) -G $(LFLAGS) daemon.o vtdevxd.o paintx.o screen.o -ovconsd
 	toglclr -super $@
 	@echo done.
 
-vcons1d: vcon.o vtdevx1.o screen1.o
-	$(CC) -G $(LFLAGS) vcon.o vtdevx1.o screen1.o -ovcons1d
+vcons1d: daemon.o vtdevx1.o screen1.o
+	$(CC) -G $(LFLAGS) daemon.o vtdevx1.o screen1.o -ovcons1d
 	toglclr -super $@
 	@echo done.
 
-vconx: vcon.o vtdevx.o paintx.o
-	$(CC) -G $(LFLAGS) vcon.o vtdevx.o paintx.o -ovconx
+vconx: daemon.o vtdevx.o paintx.o
+	$(CC) -G $(LFLAGS) daemon.o vtdevx.o paintx.o -ovconx
 	toglclr -super $@
 	@echo done.
 
-vcon: vcon.o vtdev.o paint.o
-	$(CC) -G $(LFLAGS) vcon.o vtdev.o paint.o -ovcon
+vcon: daemon.o vtdev.o paint.o
+	$(CC) -G $(LFLAGS) daemon.o vtdev.o paint.o -ovcon
 	toglclr -super $@
 	@echo done.
 
-vcon.sym: vcon.o vtdev.o
-	$(CC) -B/usr/lib/sym- $(LFLAGS) vcon.o vtdev.o -ovcon.sym
+vcon.sym: daemon.o vtdev.o
+	$(CC) -B/usr/lib/sym- $(LFLAGS) daemon.o vtdev.o -ovcon.sym
 	@echo done.
 
 paint.o: paint.c

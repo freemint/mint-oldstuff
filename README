@@ -4,14 +4,14 @@ here is something you've all been waiting for... virtual terminals
 for MiNT :-)  now you can...
 
  use up to 10 shells/whatever without magnifying glasses or 19" screens
- run GEM on the console, top on vt01 and gdb' a GEM program from vt02...
+ run GEM on the console, top on ttyv1 and gdb' a GEM program from ttyv2...
  send MiNTs debug output to another terminal than the debugged program
  when some stupid program hangs and MiNT is still alive just switch to
 another terminal and send the thing a signal. (ever heared of vp/ix?
 oops, wrong CPU...)
  temporarily suspend GEM while you need your cycles for something more
-important than polling the mouse ;)  i.e. just send SIGSTOP and SIGCONT
-later. (now if MiNT only had swapping...)
+important than polling the mouse in a tight loop...  i.e. just send
+SIGSTOP and later SIGCONT, see end of this file.
  show people that its not MiNT that is slow, only GEM :-)  also the
 screen writing code in vtdev.c + paint.c is mostly based on MiNTs
 fasttext device (including hardware scrolling for all terminals except
@@ -24,30 +24,35 @@ ever get.
 (worked because you won't need it anymore then) and where
 Setscreen (-1, base, -1) allows setting the displayed screen
 independent of the one GEM (or VDI actually) writes to.  on some
-configurations (currently vanilla ST(e), TT or falcon with VGA screen)
-where it knows how to save/set a complete video mode vt01..9 have their
-own fixed mode like e.g. st-hi, see screen.c for details.  otherwise all
-terminals have to use the same video mode, which can be slow and eat
-much memory when the console is running some big hi-res colour mode...
-and switching modes later makes vt01..9 unreadable too.
+configurations (currently vanilla ST(e), TT, and falcons with VGA
+screen) where it knows how to save/set a complete video mode ttyv1..9
+have their own fixed mode like e.g. st-hi, see screen.c for details.
+otherwise all terminals have to use the consoles video mode, which can
+be slow and a waste of RAM and bus bandwidth when it is some big hi-res
+many-colours one...  and then switching modes later makes ttyv1..9
+unreadable too, including GEM doing it when configured so in
+desktop.inf.  thanx atari there is no standard how to change video
+modes independent of GEM...
 
  there are 4 different versions (make targets) now,
 
-1. vconsd: currently (this beta) does not work on falcons with anything
-but VGA screens, otherwise `full version'.  if this doesn't work for you
-try vconx, or better yet fix it and send diffs. :-)
+1. vconsd: `standard version'.  if this doesn't work for you you can
+still try vconx (always uses only Setscreen), or better yet try to fix
+screen.c to know about your video hardware too.  (mail me the changes
+or if you need help...)
 
 2. vcons1d: stripped-down version that only knows about characters 8 or
 16 pixel high and one plane.  needs either a monochrome mode or screen.c
-must know how to save/set the palette.  the result is a bit more speed...
+needs to know how to save/set the palette.  try this if you want a bit
+more speed and don't care about colour on text terminals...
 
-3. vconx (default): like vconsd only with the video mode stuff disabled,
-try this one when the others don't work.
+3. vconx: like vconsd only with the video mode stuff disabled, try this
+one when the others don't work.
 
-4. vcon: another test version that also speeds up console writes (vt00).
+4. vcon: another test version that also speeds up console (ttyv0) output.
 this is no longer default because there are GEM programs that expect
 console writes to always go thru the xcon* vectors, i.e. they hook a
-terminal window there and then write to console... instead of using ptys.
+terminal window there and then write to console.  although MiNT has ptys...
 
  installation:
 
@@ -59,7 +64,7 @@ if [ -f /usr/etc/vcons1d ]; then
 	echo "starting virtual consoles"
 	if nice --20 vcons1d; then
 		mv /dev/console /dev/con00
-		mv /dev/vt00 /dev/console
+		mv /dev/ttyv0 /dev/console
 		vt=vt
 	fi
 fi
@@ -70,13 +75,12 @@ ln /etc/ttytab.$vt /etc/ttytab
  (the mv.s are for programs that open /dev/console so they get the
 new one... writing to the old one should be no problem, but reading is.)
 
- ttytab.vt has entries for console and vt01..09 (of course not all of
-them need be `on' :-), ttytab.con only has the original console.  and
-remember GEM can only run on console...
-
- without init put something similar in mint.cnf (and then set CON to
-the new console).  of course without init you'll have to do its job
-yourself, i.e. put gettys or shells etc. on the new terminals `by hand'.
+ ttytab.vt has entries for console and ttyv1..9 (of course not all of
+them need be `on' :), ttytab.con only has the original console.  and
+remember GEM can only run on console...  without init do something
+similar in mint.cnf (and then set CON= the new console).  of course
+without init you'll have to do all its work yourself, i.e. put gettys
+or shells etc. on the new terminals, respawn them when exited...
 see runtt.c.
 
  you can also add this to termcap:
@@ -112,24 +116,32 @@ stv52c|MiNT virtual console (k?=scancodes):\
 then less, elvis etc know how to do underline/boldface text and use
 different cursors for (elvis) command/input/replace mode...  stv52c is
 the same for programs that use scancodes instead of escape sequences
-(like the TOS/MiNT elvis before 1.7, 1.7 understands both under MiNT).
-scancodes don't work over serial lines btw...
+(like the TOS/MiNT elvis before 1.7, with MiNT 1.7 understands both).
+oh and scancodes don't work over serial lines btw...
 
  also depending on the video mode lines and columns can differ, if you
 have programs that don't know about TIOCGWINSZ/SIGWINCH adjust the
 numbers after li# and co#, for example on a falcon with VGA screen
-vt01..9 have 30 lines -> li#30.  there are also programs that don't
+ttyv1..9 have 30 lines -> li#30.  there are also programs that don't
 look in termcap but check environment variables LINES and COLUMNS...
 and there are probably still old ones that only look in linea, they
-will always get the size of the console.
+will always get the size of the console.  one last special case is for
+those GEM terminal windows accessed as /dev/console instead of thru ptys,
+because of them ioctl TIOCGWINSZ now returns `size unknown' i.e. ws_row
+and ws_col == 0 for ttyv0 (console) if its xconout vector changed since
+startup.  (btw are there more programs besides Gemini that still do this?)
 
- to switch between terminals just hit alt-fkey, f10 is the console.
-when it `bing's at you that means the terminal has no screen memory
-because no process has it open... with init you can turn it on in ttytab
-and send init SIGHUP.  and when it `bing's at you while you type that
-means the terminals `keyboard queue' is full... to empty it hit
-alt-undo.  (if its empty alt-undo gets passed thru, so programs can
-still use it.)
+ to switch between terminals just hit alt-fkey, f10 is the console.  you
+might have to hold down the alt key a little longer sometimes until the
+daemon gets to read it, thats because the TOS keyboard interrupt that
+MiNT still uses doesn't normally save shift/alt key status with the keys
+and certain things like disk IO can still halt the whole system for
+noticable time.  when it `bing's at you that means the terminal has no
+screen memory because no process has it open, with init then enable the
+tty in /etc/ttytab and SIGHUP init (kill -1, tells it to reread ttytab)
+or use runtt...  and when it `bing's at you while you type that means
+the terminals `keyboard queue' is full, to empty it hit alt-undo.  (if
+its empty alt-undo gets passed thru so programs can still use it.)
 
  coping with GEM
 
@@ -143,26 +155,29 @@ in supervisor mode for great length of times, effectively stopping
 multitasking completely for seconds.
 
  to get around the last problem install nohog.acc from the minixfs
-distribution, (btw everyone using MiNT should try out minixfs, its just
-so much better than this slow and stupid GEMDOS thing...) to stop the
-SIGTT* signals (symptom is a `hanging' GEM) use execgem, it `turns off'
-job control on the console device before it starts GEM, see execgem.c.
-the only thing you can do about the wasted cycles is run GEM at lowest
-priority, i use this alias:
+distribution (also used for minixfs update daemon; btw everyone runnig
+MiNT should try out minixfs, its just so much better than this slow
+and stupid GEMDOS thing...)  to stop the SIGTT* signals (symptom is a
+`hanging' GEM) use execgem, it turns off job control (process group)
+checks on the console before it starts GEM, see execgem.c.  the only
+thing you can do about the wasted cycles is run GEM at lowest priority,
+i use this alias (ksh):
 
 	alias 'gem=cd /dev/c; mv nohog.acx nohog.acc ;LESS=-c exec nice -40 u:/home/nox/ksh/execgem'
 
-then when i run other processes at highest priority they get at least
-a bit more CPU than GEM. :)  the can't-leave-GEM problem still waits
-for a solution, the closest thing is stop it while you don't need it so
-it can't at least steal you cycles. (SIGSTOP, continue with SIGCONT.)
-if someone @ atari reads this, GEM should really catch SIGHUP etc. and
-do a clean exit...
+then when i run other processes at highest priority they get at least a
+bit more CPU than GEM. :)  the can't-leave-GEM problem still waits for a
+solution, the closest thing is stop it while you don't need it, then it
+only takes up memory but no more cycles. (SIGSTOP, continue with SIGCONT.)
+or if its not multitos run a .tos program fullscreen from desktop, then
+it stops polling and releases some of its memory too, see select0.c.
+still GEM should really catch SIGHUP etc. and do a clean exit...
+(hey you can even shut down a mac cleanly, or look at X...)
 
- another one nothing to do with virtual consoles:  things like funny
-screen layout etc. in GF*bugsic programs can sometimes be `fixed' by
-setting BIOSBUF=no in mint.cnf.  i already doctored a minixfs with an
-old SED (diskeditor) on console and fsck on vt02...
+ and finally another one nothing to do with virtual consoles:  things
+like funny screen layout in GF*bugsic programs can sometimes be `fixed'
+by setting BIOSBUF=no in mint.cnf.  i already doctored minixfilesystems
+with an old SED (diskeditor) on console and fsck on ttyv2...
 
  ok, happy testing
 	Juergen
