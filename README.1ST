@@ -1,16 +1,15 @@
 Hello MiNTOS users!
 
 I am back again, with slightly enhanced version of ttyvdev - virtual consoles
-(originally created by Juergen Lock).
+(originally created by Juergen Lock). This release has two important new
+features: new character attributes and Falcon enhanced resolution.
 
-This version is especially Falcon-enhanced, so if you're Falcon user, please
-read the README.Falcon info file to find out how to set up your favourite
-resolution in vconsoles.
+If you're Falcon user, please read the README.Falcon info file to find
+out how to set up your favourite resolution in vconsoles.
 
-I have also enabled two more character attributes - italic (skewed) and
-dim. The support for these was in vconsoles for some time, but the codes
-for enabling and disabling them was not there. I introduced four new
-ESC codes:
+The new character attributes are italic (skewed) and dim. The support
+for these was in vconsoles for some time, but the codes for enabling
+and disabling them was not there. I introduced four new ESC codes:
 
 ESCm enters dim mode
 ESCn exits dim mode
@@ -43,4 +42,4 @@ Petr Stehlik (stehlik@cas3.zlin.vutbr.cz, pstehlik@zln.cz)
 home page http://cas3.zlin.vutbr.cz/~stehlik/
           http://www.stehlik.cyberstrider.org/
 
-1998/5/10 in Zlin, Czech Republic, Europe
+1998/5/11 in Zlin, Czech Republic, Europe

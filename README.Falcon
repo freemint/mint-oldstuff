@@ -13,9 +13,12 @@ If you would like to run vconsoles in your own resolution, simply
 go to Desktop in 2 color mode. Setup your favourite resolution using
 any Falcon screen enhancer (FalconScreen, ScreenBlaster, BlowUP030,
 VidelInside or Videlity) and then start SAVE_RES.TOS program.
-It will save your resolution into file '/etc/resolution'. The vcond
+It will save your resolution into file '/etc/resolution'. The vconsd
 from this distribution will then read the file and use the data
-for setting the same resolution in vconsoles.
+for setting the same resolution in vconsoles. If writting to that file
+fails (for example because you're in SingleTOS at that moment), the
+program writes the data to alternate file in current dir named 'etc_res'.
+You must then copy this file manually to the '/etc/resolution' file.
 
 Don't forget to switch into 2-colors mode before running
 the SAVE_RES.TOS, because virtual consoles are patched for mono
@@ -28,7 +31,7 @@ and I got it from MiNT (or Falcon040?) mailing list).
 
 Enjoy,
 
-Petr Stehlik (22.3.1997, 14.6.1997, 10.5.1998)
+Petr Stehlik (22.3.1997, 14.6.1997, 10.5.1998, 11.5.1998)
 
 http://cas3.zlin.vutbr.cz/~stehlik/
 
